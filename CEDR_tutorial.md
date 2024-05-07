@@ -82,7 +82,7 @@ cd build
 Call cmake and make to create CEDR executables for x86
 ```bash
 cmake ../
-make -j -$(nproc)
+make -j $(nproc)
 ```
 At this point there are 4 important files that should be compiled:
   * *cedr:* CEDR runtime daemon
@@ -784,12 +784,17 @@ git clone -b tutorial git@github.com:UA-RCL/CEDR.git
 git clone -b tutorial https://github.com/UA-RCL/CEDR.git
 ```
 
+Before building CEDR, make sure the used platform is set correctly within [platforms.h](./libdash/platform.h) by setting `DASH_PLATFORM` to `DASH_JETSONAGX`:
+```C
+#define DASH_PLATFORM DASH_JETSONAGX
+```
+
 Then, we can build CEDR. Cross compiler is not necessary in this case since we are already logged into the host machine. We enable `GPU` flag for the CMake to be able to make use of the GPU as an accelerator. 
 ```bash
 mkdir build
 cd build
 cmake -DLIBDASH_MODULES="GPU" ../
-make -j -$(nproc)
+make -j $(nproc)
 ```
 
 ### 8.2 Compilation
@@ -870,8 +875,7 @@ cat output/pulse_doppler_output.txt
 
 ## 9. FPGA Based SoC Experiment (ZCU102 MPSoC)
 
-(Conv2d (accelerator) is not included in HCW release.)
-Moving on to the aarch64-based build for ZCU102 FPGA with accelerators. We'll start by building CEDR itself. This time we will use the [toolchain](toolchains/aarch64-linux-gnu.toolchain.cmake) file for cross-compilation. If you are on Ubuntu 22.04, the toolchain requires running inside the docker container. (Self note: Be careful about platform.h)
+Moving on to the aarch64-based build for ZCU102 FPGA with accelerators. We'll start by building CEDR itself. This time we will use the [toolchain](toolchains/aarch64-linux-gnu.toolchain.cmake) file for cross-compilation. If you are on Ubuntu 22.04, the toolchain requires running inside the docker container.
 Simply run the following commands from the repository root folder:
 
 ```bash
