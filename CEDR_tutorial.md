@@ -388,7 +388,7 @@ python3 plt3dplot_inj.py dataframe.csv SCHED # Scheduling overhead
 
 ## 5. Integration and Evaluation of EFT Scheduler
 
-Now navigate to [scheduler.cpp](scr-api/scheduler.cpp). This file contains various schedulers already tailored to work with CEDR. In this part of the tutorial, we will add the Earliest Finish Time(EFT) scheduler to CEDR. EFT heuristic schedules all the tasks in the `read queue` one by one based on the earliest expected finish time of the task on the available resources (processing elements -- PE). 
+Now navigate to [scheduler.cpp](src-api/scheduler.cpp). This file contains various schedulers already tailored to work with CEDR. In this part of the tutorial, we will add the Earliest Finish Time(EFT) scheduler to CEDR. EFT heuristic schedules all the tasks in the `read queue` one by one based on the earliest expected finish time of the task on the available resources (processing elements -- PE). 
 
 First, we will write the EFT scheduler as a C/C++ function. We will utilize the available variables for all the schedulers in CEDR. A list of the useful variables and their explanations can be found in the bulleted list below.
 
@@ -554,7 +554,7 @@ int scheduleEFT(ConfigManager &cedr_config, std::deque<task_nodes *> &ready_queu
 
 ### 5.6 Adding EFT as a scheduling option
 
-Now, the only thing left is to ensure CEDR can run this function during scheduling events. To do this in the same [scheduler.cpp](scr-api/scheduler.cpp) file, we go to the end and update the [performScheduling](https://github.com/UA-RCL/CEDR/blob/tutorial/src-api/scheduler.cpp#L406) function. In the function where `sched_policy` is checked, we add another `else if` segment that checks whether the scheduling policy is `EFT`. If it is, we will call the function we just created.
+Now, the only thing left is to ensure CEDR can run this function during scheduling events. To do this in the same [scheduler.cpp](src-api/scheduler.cpp) file, we go to the end and update the [performScheduling](https://github.com/UA-RCL/CEDR/blob/tutorial/src-api/scheduler.cpp#L406) function. In the function where `sched_policy` is checked, we add another `else if` segment that checks whether the scheduling policy is `EFT`. If it is, we will call the function we just created.
 
 ```C
 else if (sched_policy == "EFT") {
