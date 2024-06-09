@@ -7,6 +7,21 @@ In this tutorial, we will familiarize ourselves with setting up CEDR and perform
 * Perform experiments on GPU and FPGA based SoCs.
 * Integration of new API call to CEDR.
 
+## Table of Contents
+
+0. [Requirements](#0-requirements)
+1. [Initial Setup](#1-initial-setup)
+2. [Building CEDR for x86](#2-building-cedr-for-x86)
+3. [Introducing-API-Call-to-a Baseline C Application](#3-introducing-api-call-to-a-baseline-c-application)
+4. [Design Space Exploration](#4-design-space-exploration)
+5. [Integration and Evaluation of EFT Scheduler](#5-integration-and-evaluation-of-eft-scheduler)
+6. [Introducing a New API Call](#6-introducing-a-new-api-call)
+7. [Running Multiple Applications with CEDR on x86](#7-running-multiple-applications-with-cedr-on-x86)
+8. [GPU Based SoC Experiment NVIDIA Jetson AGX Xavier](#8-gpu-based-soc-experiment-nvidia-jetson-agx-xavier)
+9. [FPGA Based SoC Experiment ZCU102 MPSoC](#9-fpga-based-soc-experiment-zcu102-mpsoc)
+10. [New Accelerator Addition](#10-new-accelerator-addition)
+11. [Contact](#11-contact)
+
 ## 0. Requirements
 * Linux machine or [docker image](https://hub.docker.com/r/mackncheesiest/cedr_dev/tags)
 * CEDR Source Files: [CEDR repository for this tutorial](https://github.com/UA-RCL/CEDR/)
@@ -645,7 +660,7 @@ typedef enum zip_op {
 
 Add CPU implementation of the ZIP to [libdash/cpu](libdash/cpu/) `zip.cpp`. For simplicity, we just copy the original implementation.
 ```bash
-cp original_files/zip.cpp libdash/cpu/
+cp ../original_files/zip.cpp ./cpu/
 ```
 
 In `zip.cpp`, we also have the `enqueue_kernel` call in the API definition, which is how the task for this API will be sent to CEDR. A prototype of the `enqueue_kernel` function is given in line 12, and `enqueue_kernel` is used in non-blocking versions of the function (lines 83 and 113). The prototype is the same for all the APIs created for CEDR. The first argument has to be the function name, the second argument has to be the precision to be used, and the third argument shows how many inputs are needed for the calling function (for ZIP, this is 6). Now let's look at the ZIP-specific `enqueue_kernel` call.
@@ -678,7 +693,7 @@ We also implement two more functions, which contains implementation of CPU-based
 1. DASH_ZIP_flt_cpu: `dash_cmplx_flt_type`
 2. DASH_ZIP_int_cpu: `dash_cmplx_int_type`
 
-Having included API implementation, we should introduce the new API call to the system by updating CEDR header file ([./src-api/include/header.hpp](src-api/include/header.hpp)):
+Having included API implementation, we should introduce the new API call to the system by updating CEDR header file ([../src-api/include/header.hpp](src-api/include/header.hpp)):
 
 <pre>
 enum api_types {DASH_FFT = 0, DASH_GEMM = 1, DASH_FIR = 2, DASH_SpectralOpening = 3, DASH_CIC = 4, DASH_BPSK = 5, DASH_QAM16 = 6, DASH_CONV_2D = 7, DASH_CONV_1D = 8, <b>DASH_ZIP = 9,</b> NUM_API_TYPES = <b>10</b>};
@@ -1014,6 +1029,116 @@ xdg-open output_fft.png
 cat output/pulse_doppler_output.txt
 ```
 
-## 10. Contact
+## 10. New Accelerator Addition
+
+Before starting this section make sure the sections [6](#6-introducing-a-new-api-call) and [9](#9-fpga-based-soc-experiment-zcu102-mpsoc) are completed. Following steps assumes you are under `build-arm` at the end of [Section 9](#9-fpga-based-soc-experiment-zcu102-mpsoc)
+
+### 10.1 Adding ZIP as Resource to CEDR
+
+Update the CEDR header file ([../src-api/include/header.hpp](src-api/include/header.hpp)) to include zip as a resource by updating the following lines:
+
+<pre>
+enum resource_type { cpu = 0, fft = 1, mmult = 2, gpu = 3, <b>zip = 4, NUM_RESOURCE_TYPES = 5 </b>};
+static const char *resource_type_names[] = {"cpu", "fft", "gemm", "gpu"<b>, "zip"</b>};
+static const std::map<std::string, resource_type> resource_type_map = {{resource_type_names[(uint8_t) resource_type::cpu], resource_type::cpu},
+                                                                       {resource_type_names[(uint8_t) resource_type::fft], resource_type::fft},
+                                                                       {resource_type_names[(uint8_t) resource_type::mmult], resource_type::mmult},
+                                                                       {resource_type_names[(uint8_t) resource_type::gpu], resource_type::gpu}<b>,
+                                                                       {resource_type_names[(uint8_t) resource_type::zip], resource_type::zip}</b>};
+</pre>
+
+These lines makes sure the functions with `_zip` suffix are grabbed when CEDR starts and used when schedulers assigns tasks to ZIP accelerator.
+
+### 10.2 Accelerator Source File
+
+Add accelerator implementation of the ZIP to [libdash/zip](libdash/zip/) `zip.cpp`. For simplicity, we just copy the original implementation.
+```bash
+cp -r ../original_files/zip/ ../libdash/
+```
+
+In the `libdash/zip/zip.cpp`, there is a `DASH_ZIP_flt_zip` function call. The version `DASH_ZIP_flt_cpu` we added in [Section 6](#6-introducing-a-new-api-call) was specifically for using the `cpu` resource while `_zip` suffix is the version that will be used when ZIP accelerator is used as a resource. The `DASH_ZIP_flt_zip` functions handles the input size limitations and sta type converstion and calls another function called `zip_accel` which handles the data transfers and signalling the ZIP accelerator to start execution. Looking deeper inthe function:
+
+* ***config_zip_op(zip_control_base, op)***: Sets the ZIP operation as `op` (ADD/SUB/MULT/DIV)
+* ***config_zip_size(zip_control_base, size)***: Sets the ZIP size as `size`
+* ***memcpy((float\* ) udmabuf_base, input0, 2\*size \* sizeof(float))***: Sends the first input to UDMA for ZIP to use
+* ***memcpy((float\* ) udmabuf_base+(2\*size), input1, 2\*size \* sizeof(float))***: Sends the second input to UDMA for ZIP to use
+* ***setup_rx(dma_control_base, udmabuf_phys + (4 \* size \* sizeof(float)), 2\*size \* sizeof(float))***: Sets the return address for ZIP accelerator to put the output
+* ***setup_tx(dma_control_base, udmabuf_phys, 4 \* size \* sizeof(float))***: Sets the input address for ZIP accelerator to start reading the input from
+* ***zip_write_reg***: Starts the execution of ZIP accelerator
+* ***dma_wait_for_rx_complete***: Waits for ZIP accelerator to complete writing the output
+* ***memcpy(output, &(((float\*)udmabuf_base)[4 \* size]), 2 \* size \* sizeof(float))***: Copies the output back
+
+These are some of the main steps for adding a new accelator to CEDR.
+
+We also need to make sure `CMakeLists.txt` under `libdash` folder looks for ZIP as an accelerator as well. Update following line in [libdash/CMakeLists.txt](libdash/CMakeLists.txt).
+```CMake
+  set(ALL_LIBDASH_MODULES FFT GEMM GPU ZIP)
+```
+
+### 10.3 Building CEDR with ZIP
+
+In `build-arm` folder run the following steps to rebuild CEDR with ZIP as an accelerator.
+
+```bash
+cmake -DLIBDASH_MODULES="FFT GEMM ZIP" --toolchain=../toolchains/aarch64-linux-gnu.toolchain.cmake ..
+make -j
+```
+
+Now verifiy the functions with `_zip` suffix that are used for ZIP accelerator.
+
+```bash
+nm -D libdash-rt/libdash-rt.so | grep -E '*_zip$'
+```
+
+<pre>
+000000000000981c T <b>DASH_ZIP_flt_zip</b>
+</pre>
+
+Finally copy [daemon_config.json](daemon_config.json) to `build-arm` folder and update the worker threads to include one zip and no cpu to ensure ZIP API runs on the ZIP accelerator.
+
+```bash
+cp ../daemon_config.json ./
+vim daemon_config.json
+```
+
+<pre>
+    "Worker Threads": {
+        "cpu": <b>0</b>,
+        "fft": 2,
+        "gemm": 2,
+        "gpu": 0<b>,
+        "zip": 1</b>
+    },
+</pre>
+
+### 10.4 Verify on ZCU102
+
+To verify, build lane detection application which utilizes ZIP API calls for us to test ZIP accelerator.
+```bash
+cd ../applications/APIApps/lane_detection/
+ARCH=aarch64 make fft_nb.so
+cp ./track_nb.so image.png ../../../build-arm/
+```
+
+Now, loging to ZCU102 and follow the steps done in [Section 9](#9-fpga-based-soc-experiment-zcu102-mpsoc) to place all required files to ZCU102. Later within ZCU102 `mnt` folder launch CEDR and submit lane detection application.
+```bash
+rm -rf log_dir/*
+./cedr -c ./daemon_config.json -l NONE &
+./sub_dag -a ./track_nb.so -n 1 -p 0
+```
+
+Let's check the `timing_trace.log` for ZIP API calls running on ZIP accelerator.
+```bash
+cat log_dir/experiment0/timing_trace.log | grep -E '*zip*'
+```
+
+<pre>
+app_id: 0, app_name: track_nb, task_id: 4096, task_name: DASH_ZIP, <b>resource_name: zip1</b>, ref_start_time: 2825526285413642, ref_stop_time: 2825527994064216, actual_exe_time: 1708650574
+app_id: 0, app_name: track_nb, task_id: 10241, task_name: DASH_ZIP, <b>resource_name: zip1</b>, ref_start_time: 2825530745916383, ref_stop_time: 2825532462701959, actual_exe_time: 1716785576
+app_id: 0, app_name: track_nb, task_id: 16386, task_name: DASH_ZIP, <b>resource_name: zip1</b>, ref_start_time: 2825535235322232, ref_stop_time: 2825536986967741, actual_exe_time: 1751645509
+app_id: 0, app_name: track_nb, task_id: 22531, task_name: DASH_ZIP, <b>resource_name: zip1</b>, ref_start_time: 2825539828186218, ref_stop_time: 2825541555698286, actual_exe_time: 1727512068
+</pre>
+
+## 11. Contact
 
 For any questions and bug report, please email to [suluhan@arizona.edu](mailto:suluhan@arizona.edu).

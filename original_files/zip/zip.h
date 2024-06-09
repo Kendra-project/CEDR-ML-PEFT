@@ -8,12 +8,9 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-#if DASH_PLATFORM == DASH_JETSONAGX
-  #error "Current platform does not support the ZIP module. You likely want the ZIP implementation of the GPU module instead"
-#endif
-#if DASH_PLATFORM == DASH_ZCU102_2020_2
-  #error "Current platform does not support the ZIP module. Make sure you are using the correct platform information"
-#endif
+#if DASH_PLATFORM != DASH_ZCU102_2FFT_2MMULT_1ZIP_1CONV2D_HWSCHEDULER
+  #error "ZIP is not supported on this platform!"
+#else
 
 // What is the baseline data type that the accelerator works with?
 // We need to convert whatever baseline type we're given into this
@@ -28,7 +25,7 @@ typedef struct zip_cmplx_type {
 // Size of array in bytes divided by size of first element in bytes == number of elements in array
 #define NUM_ZIPS (sizeof(ZIP_CONTROL_BASE_ADDRS) / sizeof(ZIP_CONTROL_BASE_ADDRS[0]))
 
-#define UDMABUF_PARTITION_SIZE (ZIP_UDAMBUF_SIZE/NUM_ZIPS)
+#define UDMABUF_PARTITION_SIZE (ZIP_UDMABUF_SIZE/NUM_ZIPS)
 
 // ZIP is configured to support up to 4096 input size
 //Make sure that our udmabuf partitions are sized such that we can hold at least one INPUT and the OUTPUT for each ZIP in non-conflicting buffers
@@ -46,6 +43,17 @@ static_assert(UDMABUF_PARTITION_SIZE >= REQUIRED_BUFFER_SIZE, "Current udmabuf s
 #else
 #define LOG(...)
 #endif
+
+// AXI-LITE ap_ctrl masks
+#define ZIP_AP_START  0x01 // RW
+#define ZIP_AP_DONE   0x02 // R
+#define ZIP_AP_IDLE   0x04 // R
+#define ZIP_AP_READY  0x08 // R
+#define ZIP_AUTRST    0x80 // RW
+// AXI-LITE memory mapped address offsets
+#define ZIP_AP_CTRL   0x00 // 32 bits
+#define ZIP_SIZE      0x10 // 32 bits
+#define ZIP_OP        0x18 // 32 bits
 
 //###################################################################################
 // Function that user code calls to actually perform a full ZIP on the accelerator
@@ -104,31 +112,27 @@ void inline zip_write_reg(volatile unsigned int *base, unsigned int offset, unsi
 void config_zip_op(volatile unsigned int *base, unsigned int op){
   if(op==0){
     LOG("[zip] Configuring ZIP as ADD\n");
-    zip_write_reg(base, ZIP_OP_OFFSET, 0x00);
+    zip_write_reg(base, ZIP_OP, 0x00);
   }
   else if (op==1){
     LOG("[zip] Configuring ZIP as SUB\n");
-    zip_write_reg(base, ZIP_OP_OFFSET, 0x01);
+    zip_write_reg(base, ZIP_OP, 0x01);
   }
   else if (op==2){
     LOG("[zip] Configuring ZIP as MULT\n");
-    zip_write_reg(base, ZIP_OP_OFFSET, 0x02);
+    zip_write_reg(base, ZIP_OP, 0x02);
   }
   else if (op==3){
     LOG("[zip] Configuring ZIP as DIV\n");
-    zip_write_reg(base, ZIP_OP_OFFSET, 0x03);
-  }
-  else if (op==4){
-    LOG("[zip] Configuring ZIP as COMP_MULT\n");
-    zip_write_reg(base, ZIP_OP_OFFSET, 0x04);
+    zip_write_reg(base, ZIP_OP, 0x03);
   }
   else{
-    zip_write_reg(base, ZIP_OP_OFFSET, op);
+    zip_write_reg(base, ZIP_OP, op);
   }
 }
 
 void config_zip_size(volatile unsigned int *base, unsigned int size){
-  zip_write_reg(base, ZIP_SIZE_OFFSET, size);
+  zip_write_reg(base, ZIP_SIZE, size);
 }
 
 //###################################################################################
@@ -138,3 +142,4 @@ void inline close_zip(volatile unsigned int* virtual_addr) {
   munmap((unsigned int*)virtual_addr, getpagesize());
 }
 
+#endif
