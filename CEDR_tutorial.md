@@ -131,7 +131,7 @@ Make sure the [dash.h](libdash/dash.h) is included in the application
 #include "dash.h"
 ```
 
-Change the `radar_correlator_non_api.c` to include `DASH_FFT` calls
+Change the `radar_correlator_fft.c` to include `DASH_FFT` calls
 ```C
 <gsl_fft_wrapper(fft_inp, fft_out, len, true);;
 >DASH_FFT_flt(fft_inp, fft_out, len, true);
