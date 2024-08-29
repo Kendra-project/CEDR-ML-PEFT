@@ -84,12 +84,13 @@ void DASH_BPSK_flt(dash_cmplx_flt_type* input, dash_re_flt_type* output, size_t 
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   uint32_t completion_ctr = 0;
-  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+  uint32_t completion = 1;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
 
   DASH_BPSK_flt_nb(&input, &output, &nsymbols, &barrier);
   
-  while (completion_ctr != 1) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != 1) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
@@ -114,12 +115,13 @@ void DASH_QAM16_flt(dash_cmplx_flt_type* input, int* output, size_t nsymbols) {
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   uint32_t completion_ctr = 0;
-  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+  uint32_t completion = 1;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
 
   DASH_QAM16_flt_nb(&input, &output, &nsymbols, &barrier);
   
-  while (completion_ctr != 1) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != 1) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);

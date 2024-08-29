@@ -1,3 +1,15 @@
+
+riscv64:
+	mkdir -p ../target/riscv64
+	g++ \
+                -shared \
+                -fPIC \
+		correlator.cpp \
+		-lfftw3f \
+		-o "../target/riscv64/correlator_riscv64.so" 
+	cp "correlator.json" ../target/riscv64
+
+
 x86:
 	mkdir -p ../target/x86
 	clang++ \

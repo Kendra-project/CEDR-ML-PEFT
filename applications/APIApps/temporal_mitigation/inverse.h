@@ -20,6 +20,7 @@ using namespace std;
 void getCofactor(double A[N * N], double temp[N * N], int p, int q, int n);
 #pragma SDS data data_mover(m : AXIDMA_SIMPLE, invOut : AXIDMA_SIMPLE)
 void alternateinverse(double m[16], double invOut[16]);
+void alternateinverse2(float m[16], double invOut[16]);
 //#pragma SDS data data_mover(m:AXIDMA_SIMPLE,invOut:AXIDMA_SIMPLE)
 void scalableinverse(double m[16], double invOut[16]);
 double determinant(double A[N * N], int n);
@@ -30,6 +31,7 @@ void display(double *A, int, int);
 // void imagpart(double A[N*N],double B[N*N],double inv1[N*N], double inv2[N*N],double intmedt2[N*N]);
 #pragma SDS data access_pattern(A : SEQUENTIAL, B : SEQUENTIAL, C : SEQUENTIAL)
 void mmultiply(double A[N * N], double B[N * N], double C[N * N]);
+void mmultiply2(double A[N * N], double B[N * N], float C[N * N]);
 //#pragma SDS data access_pattern(S:SEQUENTIAL ,Si:SEQUENTIAL,Shermitian:SEQUENTIAL , Shermitianimag:SEQUENTIAL)
 void hermitian(double S[N * M], double Si[N * M], double Shermitian[N * M], double Shermitianimag[N * M]);
 double divide(double, double);

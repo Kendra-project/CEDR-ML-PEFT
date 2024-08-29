@@ -1,6 +1,23 @@
+LIBDASH_INC ?= ../../../libdash
+
+
+riscv64:
+	mkdir -p ../target/riscv64
+	g++ \
+                -I $(LIBDASH_INC) \
+                -shared \
+                -fPIC \
+		-DARM \
+		-DEXPERIMENT \
+		correlator.cpp \
+		-lfftw3f \
+		-o "../target/riscv64/correlator_riscv64.so" 
+	cp "correlator.json" ../target/riscv64/correlator-riscv64.json
+
 x86:
 	mkdir -p ../target/x86
 	clang++ \
+                -I $(LIBDASH_INC) \
                 -shared \
                 -fPIC \
 		correlator.cpp \
@@ -13,6 +30,7 @@ arm:
 	clang++ \
                 -march=armv8-a \
                 -target aarch64-linux-gnu \
+                -I $(LIBDASH_INC) \
                 -I/usr/aarch64-linux-gnu/include/c++/7/aarch64-linux-gnu \
                 -I/usr/aarch64-linux-gnu/include/c++/5/aarch64-linux-gnu \
                 -I/usr/aarch64-linux-gnu/include/c++/5.4.0/aarch64-linux-gnu \
@@ -27,11 +45,34 @@ arm:
                 -o "../target/ARM/correlator.so"
 	cp "correlator.json" ../target/ARM
 
+arm_exp:
+	mkdir -p ../target/ARM
+	clang++ \
+                -march=armv8-a \
+                -target aarch64-linux-gnu \
+                -I $(LIBDASH_INC) \
+                -I/usr/aarch64-linux-gnu/include/c++/7/aarch64-linux-gnu \
+                -I/usr/aarch64-linux-gnu/include/c++/5/aarch64-linux-gnu \
+                -I/usr/aarch64-linux-gnu/include/c++/5.4.0/aarch64-linux-gnu \
+                -I/usr/aarch64-linux-gnu/include \
+                -L/usr/aarch64-linux-gnu/lib64/ \
+                -shared -fPIC \
+				-O3 \
+                -DARM \
+				-DEXPERIMENT \
+				-g \
+                correlator.cpp \
+                ../../../toolchains/aarch64-linux-gnu/lib/libfftw3f.a \
+                -lm \
+                -o "../target/ARM/correlator.so"
+	cp "correlator.json" ../target/ARM
+
 arm_debug:
 	mkdir -p ../target/ARM
 	clang++ \
                 -march=armv8-a \
                 -target aarch64-linux-gnu \
+                -I $(LIBDASH_INC) \
                 -I/usr/aarch64-linux-gnu/include/c++/7/aarch64-linux-gnu \
                 -I/usr/aarch64-linux-gnu/include/c++/5/aarch64-linux-gnu \
                 -I/usr/aarch64-linux-gnu/include/c++/5.4.0/aarch64-linux-gnu \
@@ -41,6 +82,7 @@ arm_debug:
                 -DDEBUG \
                 -DARM \
                 correlator.cpp \
+                debug.cpp \
                 ../../../toolchains/aarch64-linux-gnu/lib/libfftw3f.a \
                 -lm \
                 -o "../target/ARM/correlator.so"

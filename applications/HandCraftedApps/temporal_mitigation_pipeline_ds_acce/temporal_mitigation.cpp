@@ -13,6 +13,10 @@
 #include <stdio.h>
 #include <fstream>
 
+#ifdef EXPERIMENT
+#define printf(...)
+#endif
+
 int TM_iter;
 double *Z, *Zi;
 double *S, *Si;

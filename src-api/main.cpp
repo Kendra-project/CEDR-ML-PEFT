@@ -26,14 +26,14 @@
  *
  * This version will only be called if addr2line is not present on the host system (i.e. arm dev board)
  */
-void segfault_handler_fallback(int sig) {
-  void *array[10];
-  size_t size;
-
-  size = backtrace(array, 10);
-
-  backtrace_symbols_fd(array, size, STDERR_FILENO);
-}
+// void segfault_handler_fallback(int sig) {
+//   void *array[10];
+//   size_t size;
+// 
+//   size = backtrace(array, 10);
+// 
+//   backtrace_symbols_fd(array, size, STDERR_FILENO);
+// }
 
 /*
  * Updated default segfault handler that attempts to provide more detailed line number information
@@ -42,83 +42,83 @@ void segfault_handler_fallback(int sig) {
  *
  * https://stackoverflow.com/a/4611112
  */
-void bt_sighandler(int sig, siginfo_t *info, void *secret) {
-  void *trace[16];
-  char **messages = (char **)nullptr;
-  int i, trace_size = 0;
-  auto *uc = (ucontext_t *)secret;
-
+// void bt_sighandler(int sig, siginfo_t *info, void *secret) {
+//   void *trace[16];
+//   char **messages = (char **)nullptr;
+//   int i, trace_size = 0;
+//   auto *uc = (ucontext_t *)secret;
+// 
   /* Do something useful with siginfo_t */
-  if (sig == SIGSEGV) {
-#if defined(__aarch64__)
-    printf("Got signal %d, faulty address is %p, "
-           "from %p\n",
-           sig, info->si_addr, (void *)uc->uc_mcontext.pc);
-#elif defined(__arm__)
-    printf("Got signal %d, faulty address is %p, "
-           "from %p\n",
-           sig, info->si_addr, (void *)uc->uc_mcontext.arm_pc);
-#else
-    printf("Got signal %d, faulty address is %p, "
-           "from %p\n",
-           sig, info->si_addr, (void *)uc->uc_mcontext.gregs[REG_RIP]);
-#endif
-  } else {
-    printf("Got signal %d\n", sig);
-  }
-
-  // Check if addr2line is available. If not, fall back to the backtrace method
-  if (system("which addr2line > /dev/null 2>&1")) {
-    printf("addr2line is not available\n");
-    segfault_handler_fallback(sig);
-  } else {
-    printf("addr2line is available, going to try to leverage it\n");
-    trace_size = backtrace(trace, 16);
-    printf("the backtrace is of size %d\n", trace_size);
-
+//   if (sig == SIGSEGV) {
+// #if defined(__aarch64__)
+//     printf("Got signal %d, faulty address is %p, "
+//            "from %p\n",
+//            sig, info->si_addr, (void *)uc->uc_mcontext.pc);
+// #elif defined(__arm__)
+//     printf("Got signal %d, faulty address is %p, "
+//            "from %p\n",
+//            sig, info->si_addr, (void *)uc->uc_mcontext.arm_pc);
+// #else
+//     printf("Got signal %d, faulty address is %p, "
+//            "from %p\n",
+//            sig, info->si_addr, (void *)uc->uc_mcontext.gregs[REG_RIP]);
+// #endif
+//   } else {
+//     printf("Got signal %d\n", sig);
+//   }
+// 
+//   // Check if addr2line is available. If not, fall back to the backtrace method
+//   if (system("which addr2line > /dev/null 2>&1")) {
+//     printf("addr2line is not available\n");
+//     segfault_handler_fallback(sig);
+//   } else {
+//     printf("addr2line is available, going to try to leverage it\n");
+//     trace_size = backtrace(trace, 16);
+//     printf("the backtrace is of size %d\n", trace_size);
+// 
     /* overwrite sigaction with caller's address */
-#if defined(__aarch64__)
-    trace[1] = (void *)uc->uc_mcontext.pc;
-#elif defined(__arm__)
-    trace[1] = (void *)uc->uc_mcontext.arm_pc;
-#else
-    trace[1] = (void *)uc->uc_mcontext.gregs[REG_RIP];
-#endif
-
-    messages = backtrace_symbols(trace, trace_size);
+// #if defined(__aarch64__)
+//     trace[1] = (void *)uc->uc_mcontext.pc;
+// #elif defined(__arm__)
+//     trace[1] = (void *)uc->uc_mcontext.arm_pc;
+// #else
+//     trace[1] = (void *)uc->uc_mcontext.gregs[REG_RIP];
+// #endif
+// 
+//     messages = backtrace_symbols(trace, trace_size);
     /* skip first stack frame (points here) */
-    printf("[handler] Execution path:\n");
-
-    for (i = 1; i < trace_size; ++i) {
-      printf("[handler] %s\n", messages[i]);
-
+//     printf("[handler] Execution path:\n");
+// 
+//     for (i = 1; i < trace_size; ++i) {
+//       printf("[handler] %s\n", messages[i]);
+// 
       /* find first occurence of '(' or ' ' in message[i] and assume
        * everything before that is the file name. (Don't go beyond 0 though
        * (string terminator)*/
-      size_t p = 0;
-      while (messages[i][p] != '(' && messages[i][p] != ' ' && messages[i][p] != 0) {
-        ++p;
-      }
-
-      char syscom[256];
-      // last parameter is the filename of the symbol
-      sprintf(syscom, "addr2line %p -e %.*s", trace[i], (int)p, messages[i]);
-
-      system(syscom);
-    }
-  }
-
-  exit(1);
-}
+//       size_t p = 0;
+//       while (messages[i][p] != '(' && messages[i][p] != ' ' && messages[i][p] != 0) {
+//         ++p;
+//       }
+// 
+//       char syscom[256];
+//       // last parameter is the filename of the symbol
+//       sprintf(syscom, "addr2line %p -e %.*s", trace[i], (int)p, messages[i]);
+// 
+//       system(syscom);
+//     }
+//   }
+// 
+//   exit(1);
+// }
 
 int main(int argc, char **argv) {
-  struct sigaction sa {};
+  // struct sigaction sa {};
 
-  sa.sa_sigaction = (void (*)(int, siginfo_t *, void *)) & bt_sighandler;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_flags = SA_RESTART | SA_SIGINFO;
+  // sa.sa_sigaction = (void (*)(int, siginfo_t *, void *)) & bt_sighandler;
+  // sigemptyset(&sa.sa_mask);
+  // sa.sa_flags = SA_RESTART | SA_SIGINFO;
 
-  sigaction(SIGSEGV, &sa, nullptr);
+  // sigaction(SIGSEGV, &sa, nullptr);
 
   cxxopts::Options options("CEDR", "An emulation framework for running DAG-based "
                                    "applications in linux userspace");
@@ -158,8 +158,7 @@ int main(int argc, char **argv) {
 
   pthread_t resource_handle[totalResources];
   worker_thread hardware_thread_handle[totalResources];
-  pthread_mutex_t resource_mutex[totalResources];
-
+  
 #if defined(USEPAPI)
   if (cedr_config.getUsePAPI()) {
     int papiRet = PAPI_library_init(PAPI_VER_CURRENT);
@@ -194,9 +193,9 @@ int main(int argc, char **argv) {
   }
 #endif
 
-  initializeThreads(cedr_config, resource_handle, hardware_thread_handle, resource_mutex);
+  initializeThreads(cedr_config, resource_handle, hardware_thread_handle);
 
-  launchDaemonRuntime(cedr_config, resource_handle, hardware_thread_handle, resource_mutex);
+  launchDaemonRuntime(cedr_config, resource_handle, hardware_thread_handle);
 
   cleanupThreads(cedr_config);
 }

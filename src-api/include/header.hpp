@@ -12,6 +12,9 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <unordered_map>
+#include <sys/mman.h>
+#include <list>
 
 #include <plog/Log.h>
 #include <nlohmann/json.hpp>
@@ -36,7 +39,6 @@ static const std::map<std::string, api_types> api_types_map = {{api_type_names[a
                                                                {api_type_names[api_types::DASH_QAM16], api_types::DASH_QAM16},
                                                                {api_type_names[api_types::DASH_CONV_2D], api_types::DASH_CONV_2D},
                                                                {api_type_names[api_types::DASH_CONV_1D], api_types::DASH_CONV_1D}};
-                                                                                                                            
 
 enum precision_types { prec_flt = 0, prec_int = 1, NUM_PRECISION_TYPES = 2 };
 static const char *precision_type_names[] = { "flt", "int" };
@@ -46,23 +48,45 @@ static const std::map<std::string, precision_types> precision_types_map =
                                                               {{precision_type_names[precision_types::prec_flt], precision_types::prec_flt},
                                                                {precision_type_names[precision_types::prec_int], precision_types::prec_int}};
 
-enum resource_type { cpu = 0, fft = 1, mmult = 2, zip = 3, gpu = 4, NUM_RESOURCE_TYPES = 5 };
+enum resource_type { cpu = 0, fft = 1, mmult = 2, zip = 3, gpu = 4, conv_2d = 5, NUM_RESOURCE_TYPES = 6 };
 // https://stackoverflow.com/a/9150607
-static const char *resource_type_names[] = {"cpu", "fft", "gemm", "zip", "gpu"};
+static const char *resource_type_names[] = {"cpu", "fft", "gemm", "zip", "gpu", "conv_2d"};
 static_assert(sizeof(resource_type_names) / sizeof(char *) == resource_type::NUM_RESOURCE_TYPES, "Resource type enum is missing a string representation or enum is missing a value");
+
+// LUT array
+extern int LUT_array[api_types::NUM_API_TYPES]; 
 
 static const std::map<std::string, resource_type> resource_type_map = {{resource_type_names[(uint8_t) resource_type::cpu], resource_type::cpu},
                                                                        {resource_type_names[(uint8_t) resource_type::fft], resource_type::fft},
                                                                        {resource_type_names[(uint8_t) resource_type::mmult], resource_type::mmult},
                                                                        {resource_type_names[(uint8_t) resource_type::zip], resource_type::zip},
+                                                                       {resource_type_names[(uint8_t) resource_type::conv_2d], resource_type::conv_2d},
                                                                        {resource_type_names[(uint8_t) resource_type::gpu], resource_type::gpu}};
+
 
 struct cedr_barrier {
   pthread_cond_t* cond;
   pthread_mutex_t* mutex;
   uint32_t* completion_ctr;
+  uint32_t* completion;
 };
 typedef struct cedr_barrier cedr_barrier_t;
+
+////////////////////////////////////
+// IL-Sched
+////////////////////////////////////
+struct struct_ILOracle_PE_t {
+    bool isSupported;
+    int64_t finish_time;
+};
+typedef struct struct_ILOracle_PE_t struct_ILOracle_PE;
+
+struct struct_ILOracle_task_t {
+    std::list<struct struct_ILOracle_PE_t> PEInfo { };
+    int resource_index;
+};
+typedef struct struct_ILOracle_task_t struct_ILOracle_task;
+////////////////////////////////////
 
 struct task_node_t {
   std::string task_name;
@@ -73,7 +97,7 @@ struct task_node_t {
   cedr_barrier_t *kernel_barrier;
   struct struct_app *app_pnt;   // points to parent app
   bool supported_resources[(uint8_t) resource_type::NUM_RESOURCE_TYPES] = {};
-  struct timespec start, end;
+  uint64_t start, end;
   pthread_t parent_app_pthread;
   void *actual_run_func;
   resource_type assigned_resource_type;
@@ -101,6 +125,8 @@ struct task_node_t {
 };
 typedef struct task_node_t task_nodes;
 
+  // TODO: Add STATUS flag to application (Options: Unarrived, Arrived, Running, Completed, Killed)
+  // This should add additional detail in log file regarding killed applications.
 struct struct_app {       // TODO: Change to only consist of shared object stuff
   int app_id;
   int task_count;
@@ -109,10 +135,11 @@ struct struct_app {       // TODO: Change to only consist of shared object stuff
   void (*main_func_handle)(void *);
   bool is_running;
   pthread_t app_pthread;
-  unsigned long arrival_time;
-  unsigned long start_time;
-  int completed_task_count;
 
+  uint64_t arrival_time;
+  uint64_t start_time;
+  uint64_t finish_time;
+  
   struct struct_app &operator=(const struct struct_app &other) {
     if (this == &other) {
       return *this;
@@ -123,7 +150,7 @@ struct struct_app {       // TODO: Change to only consist of shared object stuff
     app_name[49] = '\0';
     arrival_time = other.arrival_time;
     start_time = other.start_time;
-
+    finish_time = other.finish_time;
     return *this;
   }
 };
@@ -150,15 +177,18 @@ struct struct_worker_thread {
   // Whenever a task is launched, we add the todo_dequeue_time to the current time to update the estimated availability
   // time
   // Threads don't update their own avail time, if you need them to update it themself you might need add mutex locks around current usages
-  long long thread_avail_time; // In nanoseconds
-
+  uint64_t thread_avail_time; // In nanoseconds
   ConfigManager *cedr_config;
+
+  uint32_t time_per_cycle;
+  pthread_mutex_t resource_mutex;
+  pthread_cond_t resource_cond;
+  bool is_sleeping;
 };
 typedef struct struct_worker_thread worker_thread;
 
 struct struct_pthread_arg {
   worker_thread *thread;
-  pthread_mutex_t *thread_lock;
 };
 typedef struct struct_pthread_arg pthread_arg;
 
@@ -168,18 +198,59 @@ struct struct_logging {
   int task_id;
   char task_name[50];
   char assign_resource_name[25];
-  struct timespec start, end;
+  uint64_t start, end;
 };
 
 struct struct_schedlogging {
   unsigned int ready_queue_size;
-  struct timespec start, end;
-  unsigned long long scheduling_overhead;
+  uint64_t start, end;
+  uint64_t scheduling_overhead;
 };
 
 struct struct_applogging {
   char app_name[50];
   int app_id;
-  unsigned long long arrival, start, end;
-  unsigned long long app_runtime, app_lifetime;
+  uint64_t arrival, start, end;
+  uint64_t app_runtime, app_lifetime;
 };
+
+// If USE_ASM_TIMERS is defined and on a supported platform, uses low-latency inline assembly. Otherwise, falls back to clock_gettime(CLOCK_MONOTONIC_RAW)
+static inline __attribute__((always_inline)) uint64_t cedrGetTime(uint32_t time_per_cycle) {
+#if defined(USE_ASM_TIMERS)
+#if defined(__aarch64__)
+  uint64_t cycles;
+  asm volatile ("mrs %0, cntvct_el0;" : "=r"(cycles) :: "memory");
+  return cycles * time_per_cycle;
+#elif defined(__arm__) || defined(__aarch32__)
+  uint64_t cycles;
+  asm volatile("mrrc p15, 1, %Q0, %R0, c14" : "=r" (cycles));  
+  return cycles * time_per_cycle;  
+#else
+#error "Assembly timers not supported on current arch."
+#endif
+#else
+  struct timespec current_timespec {};
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t current_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+  return current_time;
+#endif
+}
+
+// If USE_ASM_TIMERS is defined and on a supported platform, get time elapsed per cycle.
+static inline __attribute__((always_inline)) uint32_t cedrGetTimePerCycle() {
+#if defined(USE_ASM_TIMERS)
+#if defined(__aarch64__)
+  uint32_t cntfrq;
+	asm volatile("mrs %0, cntfrq_el0" : "=r" (cntfrq) :: "memory");
+  return 1000000000/cntfrq;
+#elif defined(__arm__) || defined(__aarch32__)
+  uint32_t cntfrq;
+	asm volatile("mrc p15, 0, %0, c14, c0, 0" : "=r" (cntfrq));
+  return 1000000000/cntfrq;
+#else
+#error "Assembly timers not supported on current arch."
+#endif
+#else
+  return 1;
+#endif
+}

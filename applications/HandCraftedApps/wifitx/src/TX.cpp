@@ -56,11 +56,17 @@
 
 #include <fftw3.h>
 #include <complex>
+#include "dash.h"
+
+#ifdef EXPERIMENT
+#define printf(...)
+#define fprintf(...)
+#endif
 
 
 //typedef double complex cplx;
-typedef std::complex<double> cplx;
-const std::complex<double> I (0.0, 1.0);
+typedef std::complex<float> cplx;
+const std::complex<float> I (0.0, 1.0);
 //#include "DashExtras.h"
 //#include "gsl_fft_mex.c"
 //#include "gsl_ifft_mex.c"
@@ -81,7 +87,7 @@ double * sig_real; double* sig_img;   // MULTIPLE FRAMES- SINGLE POINTER
 float *in_ifft;                       // MULTIPLE FRAMES- SINGLE POINTER
 comp_t **ifft_in;                     // MULTIPLE FRAMES- DOUBLE POINTER
 comp_t *pilot_out;                    // MULTIPLE FRAMES- SINGLE POINTER
-double * ifft_out;
+comp_t * ifft_out;                    // Convert in dash cmplx type (comp_t )
 comp_t *cyclic_out;                   // MULTIPLE FRAMES- SINGLE POINTER
 comp_t *pre_out;
 comp_t *txData;
@@ -94,7 +100,7 @@ fftwf_plan p;
 int user_data_len;
 
 void *dlhandle;
-void (*ifft_accel_func)(double**, double**, size_t*, bool*, uint8_t);
+void (*ifft_accel_func)(dash_cmplx_flt_type**, dash_cmplx_flt_type**, size_t*, bool*, uint8_t);
 
 // Declare visible TASK_ID
 __attribute__((__visibility__("default"))) thread_local unsigned int __CEDR_TASK_ID__ = 0;
@@ -128,7 +134,7 @@ void __attribute__((constructor)) setup(void){
   ifft_in =(comp_t**)calloc(SYM_NUM, sizeof(comp_t *));
 
   pilot_out = (comp_t*)calloc(SYM_NUM*FFT_N, sizeof(comp_t));
-  ifft_out = (double *)calloc(2*FFT_N*SYM_NUM, sizeof(double));
+  ifft_out = (comp_t *)calloc(SYM_NUM*FFT_N, sizeof(comp_t));
   cyclic_out = (comp_t*)calloc(SYM_NUM*TOTAL_LEN, sizeof(comp_t));
 
   pre_out = (comp_t*) calloc(SYM_NUM*TOTAL_LEN + PREAMBLE_LEN + 2048, sizeof(comp_t));
@@ -138,12 +144,12 @@ void __attribute__((constructor)) setup(void){
   if (dlhandle == nullptr) {
     printf("Unable to open libdash-rt shared object!\n");
   } else {
-    ifft_accel_func = (void(*)(double**, double**, size_t*, bool*, uint8_t)) dlsym(dlhandle, "DASH_FFT_fft");
+    ifft_accel_func = (void(*)(dash_cmplx_flt_type**, dash_cmplx_flt_type**, size_t*, bool*, uint8_t)) dlsym(dlhandle, "DASH_FFT_flt_fft");
     if (ifft_accel_func == nullptr) {
-      printf("Unable to get function handle for DASH_FFT_fft accelerator function!\n");
+      printf("Unable to get function handle for DASH_FFT_flt_fft accelerator function!\n");
     }
     else {
-      printf("Successfully opened DASH_FFT_fft accelerator function!\n");
+      printf("Successfully opened DASH_FFT_flt_fft accelerator function!\n");
     }
   }
   
@@ -172,8 +178,9 @@ void __attribute__((destructor)) teardown(void){
   free(cyclic_out);
   free(pre_out);
   free(txData);
-  
-  dlclose(dlhandle);
+  if (dlhandle != nullptr){
+    dlclose(dlhandle);
+  }
   printf("[WiFi-TX] Finished Destructor!\n");
 }
 
@@ -202,18 +209,18 @@ void random_wait_time(int random_wait_time_in_us) {
   }
 }
 
-void fftwf_fft(double *input_array, fftwf_complex *in, fftwf_complex *out, double *output_array, size_t n_elements, fftwf_plan p )
+void fftwf_fft(dash_cmplx_flt_type *input_array, fftwf_complex *in, fftwf_complex *out, dash_cmplx_flt_type *output_array, size_t n_elements, fftwf_plan p )
 {
   for(size_t i = 0; i < n_elements; i++)
   {
-    in[i][0] = input_array[2*i];
-    in[i][1] = input_array[(2*i)+1];
+    in[i][0] = input_array[i].re;
+    in[i][1] = input_array[i].im;
   }
   fftwf_execute(p);
   for(size_t i = 0; i < n_elements; i++)
   {
-    output_array[(2*i)] = out[i][0];
-    output_array[(2*i)+1] = out[i][1];
+    output_array[i].re = out[i][0];
+    output_array[i].im = out[i][1];
   }
 }
 
@@ -275,15 +282,8 @@ extern "C" void WIFITX_IFFT(void){
   printf("[WiFi-TX] Executing IFFT with task_id = %d\n", __CEDR_TASK_ID__);
   thread_local int taskId;
   taskId = __CEDR_TASK_ID__ - (SYM_NUM*6) - 1;
-  comp_t* data = &pilot_out[taskId*FFT_N];
-  double *data_in = (double*) calloc(2*FFT_N, sizeof(double));
-  //double *data_out = (double*) calloc(2*FFT_N, sizeof(double));
-  double *data_out = &ifft_out[taskId*2*FFT_N];
-  for (int i = 0; i < FFT_N; i++) {
-    data_in[2*i] = (double)data[i].real;
-    data_in[2*i+1] = (double)data[i].imag;
-  }
-
+  dash_cmplx_flt_type* data_in = (dash_cmplx_flt_type*) &pilot_out[taskId*FFT_N];
+  dash_cmplx_flt_type* data_out = (dash_cmplx_flt_type*) &ifft_out[taskId * FFT_N];
   fftwf_fft(data_in, ifft3_in, ifft3_out, data_out, FFT_N, p);
 }
 
@@ -291,17 +291,11 @@ extern "C" void WIFITX_IFFT_accel(void){
   printf("[WiFi-TX] Executing IFFT accelerator with task_id = %d\n", __CEDR_TASK_ID__);
   thread_local int taskId;
   taskId = __CEDR_TASK_ID__ - (SYM_NUM*6) - 1;
-  comp_t* data = &pilot_out[taskId*FFT_N];
-  double *data_in = (double*) calloc(2*FFT_N, sizeof(double));
-  double *data_out = &ifft_out[taskId*2*FFT_N];
+  dash_cmplx_flt_type* data_in = (dash_cmplx_flt_type*) &pilot_out[taskId*FFT_N];
+  dash_cmplx_flt_type* data_out = (dash_cmplx_flt_type*) &ifft_out[taskId * FFT_N];
 
-  for (int i = 0; i < FFT_N; i++) {
-    data_in[2*i] = (double)data[i].real; 
-    data_in[2*i+1] = (double)data[i].imag;
-  }
-  size_t len = 128;
+  size_t len = FFT_N;
   bool isFwd = false;
-
   (*ifft_accel_func)(&data_in, &data_out, &len, &isFwd, __CEDR_CLUSTER_IDX__);
 }
 
@@ -310,26 +304,26 @@ extern "C" void WIFITX_IFFT_SHIFT(void) {
   thread_local int taskId;
   taskId = __CEDR_TASK_ID__ - (SYM_NUM*7) - 1;
   // Take data_out as input and write normalized output at pilot_out
-  double *data_in = &ifft_out[taskId*2*FFT_N];
+  dash_cmplx_flt_type *data_in = (dash_cmplx_flt_type*) &ifft_out[taskId*FFT_N];
 
   cplx buf[FFT_N];
   cplx tmp;
-  for (int i=0; i < FFT_N; i++) buf[i] = data_in[2*i] + data_in[2*i+1] * I;
+  for (int i=0; i < FFT_N; i++) buf[i] = data_in[i].re + data_in[i].im * I;
 
   int n = FFT_N;
   int n2 = FFT_N/2;
-  buf[0] = buf[0]/(double)n;
-  buf[n2] = buf[n2]/(double)n;
+  buf[0] = buf[0]/(float)n;
+  buf[n2] = buf[n2]/(float)n;
   for(int i=1; i<n2; i++) {
-    tmp = buf[i]/(double)n;
-    buf[i] = buf[n-i]/(double)n;
+    tmp = buf[i]/(float)n;
+    buf[i] = buf[n-i]/(float)n;
     buf[n-i] = tmp;
   }
 
   comp_t* data_out = &pilot_out[taskId*FFT_N];
   for (int i = 0; i < FFT_N; i++) {
-    data_out[i].real = (float)buf[i].real();
-    data_out[i].imag = (float)buf[i].imag();
+    data_out[i].real = buf[i].real();
+    data_out[i].imag = buf[i].imag();
   }
 }
 
@@ -366,6 +360,7 @@ extern "C" void WIFITX_POSTPROCESS(void){
 }
 
 extern "C" void WIFITX_SENDDATA(void){
+#ifndef EXPERIMENT
   printf("[WiFi-TX] Sending Data OR Writing in file txdata_out.txt!\n");
   FILE *txdata_file;
   txdata_file = fopen("txdata_out.txt", "w");
@@ -376,6 +371,7 @@ extern "C" void WIFITX_SENDDATA(void){
   }
   fclose(txdata_file);
   printf("[WiFi-TX] WiFi TX chain complete!!\n\n");
+#endif
 }
 
 int main(void){}

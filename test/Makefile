@@ -1,7 +1,7 @@
-INCLUDES := -I../src-dag/include -I../extern/include
+INCLUDES := -I../src-dag/include -I../extern/include -I../libdash -I../libdash/dma
 CPP_DEPENDENCIES := ../src-dag/include/keras2c/RT_resource_model_10.cpp ../src-dag/include/keras2c/nn_ml_sched.cpp
 CATCH_SOURCES := ./catch-runner.cpp ./catch-tests-utils.cpp
-SRC_FILES := $(wildcard ../src-dag/*.cpp)
+SRC_FILES := $(wildcard ../src-dag/*.cpp) ../libdash/dma/dma.cpp
 SRC_FILES := $(filter-out ../src-dag/main.cpp, $(SRC_FILES))
 
 .PHONY: all
@@ -15,6 +15,8 @@ all:
 		-ldl \
 		$(INCLUDES) \
 		$(CPP_DEPENDENCIES) \
+		../libdash/dma/dma.cpp \
+		../src-dag/hwschd.cpp \
 		../src-dag/config_manager.cpp \
 		../src-dag/scheduler.cpp \
 		../src-dag/IL.cpp \
@@ -44,6 +46,8 @@ scheduler:
 	g++ \
 		$(INCLUDES) \
 		$(CPP_DEPENDENCIES) \
+		../libdash/dma/dma.cpp \
+		../src-dag/hwschd.cpp \
 		../src-dag/config_manager.cpp \
 		../src-dag/scheduler.cpp \
 		../src-dag/IL.cpp \

@@ -3,6 +3,10 @@
 #include "crc.h"
 #include "common.h"
 
+#ifdef EXPERIMENT
+#define printf(...)
+#endif
+
 
 
 int txDataGen(int option, unsigned char inbit[], int symNum) {

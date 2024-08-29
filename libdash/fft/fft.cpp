@@ -110,12 +110,12 @@ void fft_accel(fft_cmplx_type* input, fft_cmplx_type* output, size_t fft_size, b
   LOG("[fft-%u] Calling setup_rx\n", resource_idx);
   setup_rx(dma_control_base, udmabuf_phys + (fft_size * sizeof(fft_cmplx_type)), fft_size * sizeof(fft_cmplx_type));
 
+  LOG("[fft-%u] Calling setup_tx\n", resource_idx);
+  LOG("[fft-%u] Waiting for RX to complete\n", resource_idx);
   clock_gettime(CLOCK_MONOTONIC_RAW, &start_accel);
 
-  LOG("[fft-%u] Calling setup_tx\n", resource_idx);
   setup_tx(dma_control_base, udmabuf_phys, fft_size * sizeof(fft_cmplx_type));
   
-  LOG("[fft-%u] Waiting for RX to complete\n", resource_idx);
   dma_wait_for_rx_complete(dma_control_base);
   
   clock_gettime(CLOCK_MONOTONIC_RAW, &end_accel);

@@ -6,6 +6,10 @@
 #include <string.h>
 #include <fstream>
 
+
+#include <inttypes.h>
+#define SEC2NANOSEC 1000000000
+
 void conv_serial(dash_re_flt_type *in, dash_re_flt_type *filter, dash_re_flt_type *out, int height, int width, int kernel_size){
     int x, y, z;
     z = kernel_size / 2;
@@ -137,20 +141,31 @@ void conv_fft_fft2D(dash_re_flt_type *in, dash_re_flt_type *out, int height, int
     pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
     pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     uint32_t completion_ctr = 0;
-    cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-    pthread_mutex_lock(barrier.mutex);
+    uint32_t completion = height;
+    cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
+
+
+    struct timespec current_timespec {};
+    clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+    uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
 
     // Row-by-row FFT
     for(int row = 0; row < height; row++){
-	fft_in_0[row] = (dash_cmplx_flt_type *) &(in[row*width]);
-	fft_out_0[row] = (dash_cmplx_flt_type *) &(row_row_fft_output[row*width]);
+    fft_in_0[row] = (dash_cmplx_flt_type *) &(in[row*width]);
+    fft_out_0[row] = (dash_cmplx_flt_type *) &(row_row_fft_output[row*width]);
         DASH_FFT_flt_nb(&fft_in_0[row], &fft_out_0[row], &half_width, &forwardTrans, &barrier);
     }
 
-    while (completion_ctr != height) {
+    pthread_mutex_lock(barrier.mutex);
+    if (completion_ctr != height) {
         pthread_cond_wait(barrier.cond, barrier.mutex);
     }
     pthread_mutex_unlock(barrier.mutex);
+
+    clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+    uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+    printf("Row FFT block exec time is: %" PRIu64 "\n", end_time-start_time);
+    
     
     dash_re_flt_type *row_col_swap = (dash_re_flt_type *) malloc (sizeof (dash_re_flt_type) * (height * width));
 
@@ -169,8 +184,12 @@ void conv_fft_fft2D(dash_re_flt_type *in, dash_re_flt_type *out, int height, int
     cond = PTHREAD_COND_INITIALIZER;
     mutex = PTHREAD_MUTEX_INITIALIZER;
     completion_ctr = 0;
-    barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-    pthread_mutex_lock(barrier.mutex);
+    completion = height;
+    barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
+
+    struct timespec current_timespec1 {};
+    clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec1);
+    uint64_t start_time1 = current_timespec1.tv_nsec + current_timespec1.tv_sec * SEC2NANOSEC;
 
     // Col-by-col FFT
     for(int row = 0; row < height; row++){
@@ -179,11 +198,16 @@ void conv_fft_fft2D(dash_re_flt_type *in, dash_re_flt_type *out, int height, int
         DASH_FFT_flt_nb(&fft_in_0[row], &fft_out_0[row], &half_width, &forwardTrans, &barrier);
     }
 
-    while (completion_ctr != height) {
-      pthread_cond_wait(barrier.cond, barrier.mutex);
+    pthread_mutex_lock(barrier.mutex);
+    if (completion_ctr != height) {
+    pthread_cond_wait(barrier.cond, barrier.mutex);
     }
     pthread_mutex_unlock(barrier.mutex);
-    
+
+    clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec1);
+    uint64_t end_time1 = current_timespec1.tv_nsec + current_timespec1.tv_sec * SEC2NANOSEC;
+    printf("Col FFT block exec time is: %" PRIu64 "\n", end_time1-start_time1);
+
     // Moving complex part of the pixels from below to right
     for(int row = 0; row < height; row++){
         for(int col = 0; col < width; col+=2){
@@ -222,13 +246,13 @@ void conv_fft_conj(dash_re_flt_type *in, dash_re_flt_type *out, int height, int 
 // Multiplication of input and filter in frequency domain
 void conv_fft_mult(dash_re_flt_type *first_arr, dash_re_flt_type *second_arr, dash_re_flt_type *out, int height, int width){        
 // TODO: Use smaller ZIP sizes in non-blocking manner!   
-    DASH_ZIP_flt((dash_cmplx_flt_type *)first_arr,(dash_cmplx_flt_type *)second_arr,(dash_cmplx_flt_type *)out,height*width/2,ZIP_MULT);
-    /*for(int row = 0; row < height; row++){
+    //DASH_ZIP_flt((dash_cmplx_flt_type *)first_arr,(dash_cmplx_flt_type *)second_arr,(dash_cmplx_flt_type *)out,height*width/2,ZIP_MULT);
+    for(int row = 0; row < height; row++){
         for(int col = 0; col < width; col+=2){
             out[row * width + col] = first_arr[row * width + col] * second_arr[row * width + col] - first_arr[row * width + col + 1] * second_arr[row * width + col + 1];
             out[row * width + col + 1] = first_arr[row * width + col] * second_arr[row * width + col + 1] + first_arr[row * width + col + 1] * second_arr[row * width + col];
         }
-    }*/
+    }
 }
 
 
@@ -246,8 +270,12 @@ void conv_fft_ifft2D(dash_re_flt_type *in, dash_re_flt_type *out, int height, in
     pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
     pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     uint32_t completion_ctr = 0;
-    cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-    pthread_mutex_lock(barrier.mutex);
+    uint32_t completion = height;
+    cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
+
+    struct timespec current_timespec {};
+    clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+    uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
 
     // Row-by-row IFFT
     for(int row = 0; row < height; row++){
@@ -256,10 +284,15 @@ void conv_fft_ifft2D(dash_re_flt_type *in, dash_re_flt_type *out, int height, in
         DASH_FFT_flt_nb(&fft_in_0[row], &fft_out_0[row], &half_width, &forwardTrans, &barrier);
     }
 
-    while (completion_ctr != height) {
+    pthread_mutex_lock(barrier.mutex);
+    if (completion_ctr != height) {
         pthread_cond_wait(barrier.cond, barrier.mutex);
     }
     pthread_mutex_unlock(barrier.mutex);
+
+    clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+    uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+    printf("Row IFFT block exec time is: %" PRIu64 "\n", end_time-start_time);
 
     // Moving complex part of the pixels from right to below for col-by-col IFFT
     dash_re_flt_type *row_col_swap = (dash_re_flt_type *) malloc (sizeof (dash_re_flt_type) * (height * width));
@@ -275,8 +308,12 @@ void conv_fft_ifft2D(dash_re_flt_type *in, dash_re_flt_type *out, int height, in
     cond = PTHREAD_COND_INITIALIZER;
     mutex = PTHREAD_MUTEX_INITIALIZER;
     completion_ctr = 0;
-    barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-    pthread_mutex_lock(barrier.mutex);
+    completion = height;
+    barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
+
+    struct timespec current_timespec1 {};
+    clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec1);
+    uint64_t start_time1 = current_timespec1.tv_nsec + current_timespec1.tv_sec * SEC2NANOSEC;
 
     // Col-by-col IFFT
     for(int row = 0; row < height; row++){
@@ -285,10 +322,15 @@ void conv_fft_ifft2D(dash_re_flt_type *in, dash_re_flt_type *out, int height, in
         DASH_FFT_flt_nb(&fft_in_0[row], &fft_out_0[row], &half_width, &forwardTrans, &barrier);
     }
 
-    while (completion_ctr != height) {
+    pthread_mutex_lock(barrier.mutex);
+    if (completion_ctr != height) {
         pthread_cond_wait(barrier.cond, barrier.mutex);
     }
     pthread_mutex_unlock(barrier.mutex);
+
+    clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec1);
+    uint64_t end_time1 = current_timespec1.tv_nsec + current_timespec1.tv_sec * SEC2NANOSEC;
+    printf("Col IFFT block exec time is: %" PRIu64 "\n", end_time1-start_time1);
 
     // Moving complex part of the pixels from below to right
     for(int row = 0; row < height; row++){

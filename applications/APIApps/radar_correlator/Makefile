@@ -8,13 +8,27 @@ LIBS = -L $(LIBDASH_LIB)
 
 APP_NAME = radar_correlator
 SOURCES = radar_correlator.c
+SOURCES_ZIP = radar_correlator_zip.c
 
-$(APP_NAME)-$(ARCH).so:
+ifeq ($(ARCH), aarch64)
+        CXX = aarch64-linux-gnu-g++
+        CC = aarch64-linux-gnu-gcc
+        RUNTIME_LIBDIR = ../../../build-arm/libdash
+else ifeq ($(ARCH), riscv64)
+        CXX = riscv64-linux-gnu-g++
+		CC = riscv64-linux-gnu-gcc
+        RUNTIME_LIBDIR = ../../../build_riscv/libdash
+endif
+
+$(APP_NAME)-$(ARCH).so: $(SOURCES)
 	$(CC) $(CFLAGS) $(INCLUDES) -shared -fPIC $(SOURCES) -o $(APP_NAME)-$(ARCH).so
+
+zip: $(SOURCES_ZIP)
+	$(CC) $(CFLAGS) $(INCLUDES) -shared -fPIC $(SOURCES_ZIP) -o $(APP_NAME)-zip-$(ARCH).so
 
 .PHONY: standalone
 standalone: $(APP_NAME)-$(ARCH).out
-$(APP_NAME)-$(ARCH).out:
+$(APP_NAME)-$(ARCH).out: $(SOURCES)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) $(LIBS) $(SOURCES) -l:libdash.a -lm -o $(APP_NAME)-$(ARCH).out
 
 clean:

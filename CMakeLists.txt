@@ -16,8 +16,13 @@ endif()
 
 option(UsePAPI "Include support for performance-counter profiling of applications via PAPI" FALSE)
 option(EnableProfiling "Add compiler-level flags for profiling the underlying CEDR runtime when using the DEBUG build")
+option(MeasurePerformance "Disable all prints to get accurate performance numbers" FALSE)
+option(UseASMTimers "Uses low-latency inline assembly to get time" FALSE)
+option(EnableILLogging "Enable logging training data for IL-Oracle" FALSE)
+option(UseStaticAPICosts "Use static API costs defined in the CEDR configuration file rather than dynamically recording them at runtime" FALSE)
+option(RollingMedianAPICosts "If not using static API costs, then rolling-median or rolling-mean dynamic costs are available" FALSE)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
 # Flags that are used if CMake is told to generate a debug build (i.e. with -DCMAKE_BUILD_TYPE:STRING=DEBUG)
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb -D_GLIBCXX_DEBUG")
@@ -26,7 +31,31 @@ if (EnableProfiling)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fprofile-instr-generate -fcoverage-mapping")
 endif ()
 
-message(STATUS "Building CEDR with CEDR_TYPE=${CEDR_TYPE}, UsePAPI=${UsePAPI}, EnableProfiling=${EnableProfiling}, Target=${CMAKE_SYSTEM_PROCESSOR}")
+if (UseASMTimers)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_ASM_TIMERS")
+endif()
+
+if (MeasurePerformance)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMEASURE_PERFORMANCE")
+endif()
+
+if (EnableILLogging)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_IL_ORACLE_LOGGING")
+endif()
+
+if (UseStaticAPICosts)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSTATIC_API_COSTS")
+else()
+  if (RollingMedianAPICosts)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DROLLING_MEDIAN_EXEC_HISTORY")
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DROLLING_MEAN_EXEC_HISTORY")
+  endif()
+endif()
+
+message(STATUS "Building CEDR with CEDR_TYPE=${CEDR_TYPE}, UsePAPI=${UsePAPI}, EnableProfiling=${EnableProfiling}, 
+                  MeasurePerformance=${MeasurePerformance}, UseASMTimers=${UseASMTimers}, EnableILLogging=${EnableILLogging}, 
+                  UseStaticAPICosts=${UseStaticAPICosts}, RollingMedianAPICosts=${RollingMedianAPICosts}, Target=${CMAKE_SYSTEM_PROCESSOR}")
 
 if (${CEDR_TYPE} STREQUAL DAG)
   set(CEDR_SRCDIR "${CMAKE_CURRENT_SOURCE_DIR}/src-dag")
@@ -50,12 +79,17 @@ set(CEDR_SOURCES ${CEDR_SRCDIR}/main.cpp ${CEDR_SRCDIR}/config_manager.cpp ${CED
                  ${CEDR_SRCDIR}/threads.cpp ${CEDR_SRCDIR}/dag_parse.cpp ${CEDR_SRCDIR}/runtime.cpp 
                  ${CEDR_SRCDIR}/scheduler.cpp ${CEDR_SRCDIR}/ipc.cpp)
 
+if (${CEDR_TYPE} STREQUAL API)
+  set(CEDR_SOURCES ${CEDR_SOURCES} ${CEDR_SRCDIR}/il_policy.cpp)
+endif ()
+
 # Customize the build flags based on the CEDR variation
 if (${CEDR_TYPE} STREQUAL DAG)
   # IL is currently only supported in DAG-based CEDR
-  # lol psyche! this code currently doesn't compile for DAG-based CEDR either!
   message(WARNING "Building CEDR with IL scheduler sources. Functionality of IL schedulers untested!")
   set(CEDR_SOURCES ${CEDR_SOURCES} 
+        libdash/dma/dma.cpp
+        ${CEDR_SRCDIR}/hwschd.cpp
         ${CEDR_SRCDIR}/IL.cpp
         ${CEDR_SRCDIR}/include/keras2c/nn_ml_sched.cpp
         ${CEDR_SRCDIR}/include/keras2c/RT_resource_model_10.cpp
@@ -68,6 +102,9 @@ add_executable(sub_dag ${CEDR_SRCDIR}/ipc.cpp ${CEDR_SRCDIR}/sub_dag.cpp)
 add_executable(kill_daemon ${CEDR_SRCDIR}/ipc.cpp ${CEDR_SRCDIR}/kill_daemon.cpp)
 
 target_include_directories(cedr PRIVATE extern/include ${CEDR_SRCDIR}/include)
+if (${CEDR_TYPE} STREQUAL DAG)
+  target_include_directories(cedr PRIVATE libdash libdash/dma)
+endif ()
 target_link_libraries(cedr PRIVATE pthread dl rt)
 
 target_include_directories(sub_dag PRIVATE extern/include ${CEDR_SRCDIR}/include)
@@ -77,9 +114,8 @@ target_include_directories(kill_daemon PRIVATE extern/include ${CEDR_SRCDIR}/inc
 target_link_libraries(kill_daemon PRIVATE pthread dl rt)
 
 if (UsePAPI)
-  find_library(PAPI papi REQUIRED)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSEPAPI")
-  target_link_libraries(cedr PRIVATE ${PAPI})
+  target_link_libraries(cedr PRIVATE papi)
 endif ()
 
 # Enable additional targets for running clang-format/clang-tidy

@@ -424,7 +424,7 @@ int main() {
    // printf("[wifi-tx] WiFi TX chain complete\n", exec_time);
 
   // printf("[nk] Non-kernel thread execution is complete...\n");
-  printf("[WiFi-TX] Execution is complete...\n");
+  // printf("[WiFi-TX] Execution is complete...\n");
   return 0;
 }
 

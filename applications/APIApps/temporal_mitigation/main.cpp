@@ -317,7 +317,7 @@ int main(int argc, char *argv[]) {
   free(zres);
   free(zresimag);
 
-  cout << "[Temporal Mitigation] Execution is complete..." << std::endl;
+  // cout << "[Temporal Mitigation] Execution is complete..." << std::endl;
 
   return 0;
 }

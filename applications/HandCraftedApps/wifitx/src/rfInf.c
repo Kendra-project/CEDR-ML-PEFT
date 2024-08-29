@@ -6,6 +6,10 @@
 #include "rfInf.h"
 #include "rf_interface.h"
 
+#ifdef EXPERIMENT
+#define printf(...)
+#endif
+
 static FILE *fp = NULL;
 
 static int mediaType = DATFILE;
@@ -143,7 +147,9 @@ static int fileWrite(FILE *fp, comp_t *buf, int len) {
       for(i=0; bufCount<len; i++) {
          comp = buf[i];
          for(j=0; j<OSRATE; j++) {
+#ifndef EXPERIMENT
             ret = fwrite(&comp, 4, 2, fp); // FIXME
+#endif
             if(ret == 0) return 0;
          }
          bufCount++;
@@ -153,7 +159,9 @@ static int fileWrite(FILE *fp, comp_t *buf, int len) {
       convCompInt(len, buf, txdata);
       for(i=0; bufCount<len; i+=2) {
          for(j=0; j<OSRATE; j++) {
+#ifndef EXPERIMENT
             ret = fwrite(&txdata[i], 2, 2, fp);
+#endif
             if(ret == 0) return 0;
          }
          bufCount++;
@@ -236,11 +244,13 @@ void create_rfInf(int mode, int media, int format, int crrType, int crrIntvl) {
             printf("- Write to RF dump file: ");
             if(dataFormat == FLT_4BYTE) printf("4 byte floating point number\n");
             else if(dataFormat == INT_2BYTE) printf("2 byte integer number\n");
+#ifndef EXPERIMENT
             fp = fopen("txdata.txt", "w");
             if(fp == NULL) {
                  printf("output data file open error!! \n");
                  exit(1);
             }
+#endif
          }
          break;
       case RFCARD :

@@ -9,6 +9,9 @@
 #define RAWDATA PROGPATH "rawdata_rda.txt"
 #define OUTPUT "SAR_RDA-output.txt"
 
+#include <inttypes.h>
+#define SEC2NANOSEC 1000000000
+
 // Define KERN_ENTER and KERN_EXIT as NOPs
 #define KERN_ENTER(KERN_STR)
 #define KERN_EXIT(KERN_STR)
@@ -190,32 +193,52 @@ int main(void) {
   bool forwardTrans = true;
   zip_op_t op = ZIP_MULT;
 
+  struct timespec current_timespec {};
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+
   DASH_FFT_flt(g[0], g2[0], fast, forwardTrans);
 
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+  printf("FFT block 1 exec time is: %" PRIu64 "\n", end_time-start_time);
+
+{
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   uint32_t completion_ctr = 0;
-  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+  uint32_t completion = Nslow;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
+
+  struct timespec current_timespec {};
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
 
   for (i = 0; i < Nslow; i++) {
     DASH_FFT_flt_nb(&s0[i], &fft_out_0[i], &fast, &forwardTrans, &barrier);
   }
 
-  while (completion_ctr != Nslow) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != Nslow) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
+
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+  printf("FFT block 2 exec time is: %" PRIu64 "\n", end_time-start_time);
+}
 
   for (i = 0; i < Nslow; i++) {
     fftshift(fft_out_0[i], Nfast);
   }
 
-  cond = PTHREAD_COND_INITIALIZER;
-  mutex = PTHREAD_MUTEX_INITIALIZER;
-  completion_ctr = 0;
-  barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+{
+  pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+  pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  uint32_t completion_ctr = 0;
+  uint32_t completion = Nslow;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
 
   for (i = 0; i < Nslow; i++) {
     DASH_ZIP_flt_nb(&fft_out_0[i], &g2[0], &fft_inp_1[i], &fast, &op, &barrier);
@@ -227,28 +250,41 @@ int main(void) {
 */
   }
 
-  while (completion_ctr != Nslow) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != Nslow) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
+}
 
   forwardTrans = false;
 
-  cond = PTHREAD_COND_INITIALIZER;
-  mutex = PTHREAD_MUTEX_INITIALIZER;
-  completion_ctr = 0;
-  barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+{
+  pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+  pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  uint32_t completion_ctr = 0;
+  uint32_t completion = Nslow;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
+
+  struct timespec current_timespec {};
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
 
   for (i = 0; i < Nslow; i++) {
     DASH_FFT_flt_nb(&fft_inp_1[i], &fft_out_1[i], &fast, &forwardTrans, &barrier);
   }
 
-  while (completion_ctr != Nslow) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != Nslow) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
 
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+  printf("FFT block 3 exec time is: %" PRIu64 "\n", end_time-start_time);
+
+}
   for (i = 0; i < Nslow; i++) {
     for (j = 0; j < Nfast; j += 1) {
       fft_inp_3[j][i].re = fft_out_1[i][j].re;
@@ -259,30 +295,43 @@ int main(void) {
   // Azimuth FFT
   forwardTrans = true;
 
-  cond = PTHREAD_COND_INITIALIZER;
-  mutex = PTHREAD_MUTEX_INITIALIZER;
-  completion_ctr = 0;
-  barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+{
+  pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+  pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  uint32_t completion_ctr = 0;
+  uint32_t completion = Nfast;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
+
+  struct timespec current_timespec {};
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
 
   for (i = 0; i < Nfast; i++) {
     DASH_FFT_flt_nb(&fft_inp_3[i], &S1[i], &slow, &forwardTrans, &barrier);
   }
 
-  while (completion_ctr != Nfast) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != Nfast) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
+  
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+  printf("FFT block 4 exec time is: %" PRIu64 "\n", end_time-start_time);
+
+}
 
   for (i = 0; i < Nfast; i++) {
     fftshift(S1[i], Nslow);
   }
 
-  cond = PTHREAD_COND_INITIALIZER;
-  mutex = PTHREAD_MUTEX_INITIALIZER;
-  completion_ctr = 0;
-  barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+{
+  pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+  pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  uint32_t completion_ctr = 0;
+  uint32_t completion = Nfast;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
 
   // Azimuth Compression
   for (i = 0; i < Nfast; i++) {
@@ -295,27 +344,40 @@ int main(void) {
 */
   }
 
-  while (completion_ctr != Nfast) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != Nfast) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
+}
 
   forwardTrans = false;
 
-  cond = PTHREAD_COND_INITIALIZER;
-  mutex = PTHREAD_MUTEX_INITIALIZER;
-  completion_ctr = 0;
-  barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+{
+  pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+  pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  uint32_t completion_ctr = 0;
+  uint32_t completion = Nfast;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
+
+  struct timespec current_timespec {};
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
 
   for (i = 0; i < Nfast; i++) {
     DASH_FFT_flt_nb(&fft_inp_2[i], &fft_out_2[i], &slow, &forwardTrans, &barrier);
   }
 
-  while (completion_ctr != Nfast) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != Nfast) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
+
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+  printf("FFT block 5 exec time is: %" PRIu64 "\n", end_time-start_time);
+}
 
   for (i = 0; i < Nfast; i++) {
     fftshift(fft_out_2[i], Nslow);
@@ -323,6 +385,10 @@ int main(void) {
       sac[i+j*Nfast] = sqrt(fft_out_2[i][j].re * fft_out_2[i][j].re + fft_out_2[i][j].im * fft_out_2[i][j].im);
     }
   }
+
+  //clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  //uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+  //printf("SAR Inference: %" PRIu64 "\n", end_time-start_time);
   
   fp = fopen("./output/SAR_output.txt", "w");
   if (fp != NULL) {
@@ -335,7 +401,7 @@ int main(void) {
     }
     fclose(fp);
   }
-  //printf("[SAR] Execution is complete...\n");
+  // printf("[SAR] Execution is complete...\n");
   
   return 0;
 }

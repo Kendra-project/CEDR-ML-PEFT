@@ -9,13 +9,20 @@ LIBS = -L $(LIBDASH_LIB)
 APP_NAME = SAR
 SOURCES = SAR.cpp
 NB_SOURCES = SAR_nb.cpp
-NB_SOURCES_STATIC_INPUT = SAR_nb_static_input.cpp
 
-static: $(NB_SOURCES_STATIC_INPUT)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -shared -fPIC $(NB_SOURCES_STATIC_INPUT) -o $(APP_NAME)_nb-static-$(ARCH).so
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(LIBS) $(NB_SOURCES_STATIC_INPUT) -l:libdash.a -o $(APP_NAME)_nb-static-$(ARCH).out
+ifeq ($(ARCH), aarch64)
+	CXX = aarch64-linux-gnu-g++
+	CC = aarch64-linux-gnu-gcc
+	RUNTIME_LIBDIR = ../../../build-arm/libdash
+else ifeq ($(ARCH), riscv64)
+        CXX = riscv64-linux-gnu-g++
+		CC = riscv64-linux-gnu-gcc
+        RUNTIME_LIBDIR = ../../../build_riscv/libdash
+endif
 
-$(APP_NAME)-$(ARCH).so: $(SOURCES)
+default: blocking nonblocking
+
+blocking: $(SOURCES)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -shared -fPIC $(SOURCES) -o $(APP_NAME)-$(ARCH).so
 
 .PHONY: standalone
@@ -23,12 +30,11 @@ standalone: $(APP_NAME)-$(ARCH).out
 $(APP_NAME)-$(ARCH).out: $(SOURCES)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) $(LIBS) $(SOURCES) -l:libdash.a -o $(APP_NAME)-$(ARCH).out
 
-nonblocking: $(APP_NAME)_nb-$(ARCH).so
-$(APP_NAME)_nb-$(ARCH).so: $(NB_SOURCES)
+nonblocking: $(NB_SOURCES)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -shared -fPIC $(NB_SOURCES) -o $(APP_NAME)_nb-$(ARCH).so
 
 standalone_nb: $(APP_NAME)_nb-$(ARCH).out
-$(APP_NAME)_nb-$(ARCH).out: $(NB_SOURCES)
+$(APP_NAME)-nb-$(ARCH).out: $(NB_SOURCES)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) $(LIBS) $(NB_SOURCES) -l:libdash.a -o $(APP_NAME)_nb-$(ARCH).out
 
 clean:

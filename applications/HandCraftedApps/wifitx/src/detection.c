@@ -11,6 +11,10 @@
 #define BUF_LIMIT 1000000
 #define SEC2NANOSEC 1000000000
 
+#ifdef EXPERIMENT
+#define printf(...)
+#endif
+
 static comp_t rfIoBuf[BUF_LIMIT];
 
 static FILE *lfp1, *lfp2, *lfp3, *lfp4, *lfp5;

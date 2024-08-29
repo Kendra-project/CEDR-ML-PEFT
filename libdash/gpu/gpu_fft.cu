@@ -7,7 +7,7 @@
 #include <cuda_runtime.h>
 #include <cufft.h>
 
-#include "dash_types.h"
+#include "dash.h"
 #include "platform.h"
 
 //#error "GPU FFT module must be updated to adhere to the updated FFT_int/FFT_flt API changes -- see FFT module for an example"
@@ -64,9 +64,11 @@ extern "C" void fft_cuda(dash_cmplx_flt_type* input, dash_cmplx_flt_type* output
 }
 
 extern "C" void DASH_FFT_flt_gpu(dash_cmplx_flt_type** input, dash_cmplx_flt_type** output, size_t* size, bool* isForwardTransform, uint8_t resource_idx){
+#if DASH_PLATFORM == DASH_HPC
   int dev_count;
   cudaGetDeviceCount(&dev_count);
   cudaSetDevice(resource_idx%dev_count);
+#endif
   //printf("GPU id is %d\n", (resource_idx%dev_count));
   //float* inp = (float*) malloc(2 * (*size) * sizeof(float));
   //float* out = (float*) malloc(2 * (*size) * sizeof(float));

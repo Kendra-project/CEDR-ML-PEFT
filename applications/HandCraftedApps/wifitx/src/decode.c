@@ -5,6 +5,10 @@
 #include "crc.h"
 #include <stdlib.h>
 
+#ifdef EXPERIMENT
+#define printf(...)
+#endif
+
 unsigned char myId =0;
 
 void messagedecoder(unsigned char *buf) {

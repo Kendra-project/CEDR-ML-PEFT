@@ -262,5 +262,5 @@ int main(int argc, char *argv[]) {
     fclose(fp);
   }
 
-  printf("[Pulse Doppler] Execution is complete...\n");
+  // printf("[Pulse Doppler] Execution is complete...\n");
 }

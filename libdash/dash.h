@@ -15,9 +15,6 @@
 extern "C" {
 #endif
 
-#define CONV_2D_MIN -32768
-#define CONV_2D_MAX 32767
-
 /*
  * Current open questions: 
  * 1. Should we be doing anything to stop the user from shooting themselves in the foot with divide-by-zero with that ZIP_DIV op?
@@ -77,6 +74,37 @@ void DASH_BLAS_TRANSPOSE_int(dash_cmplx_int_type* in, dash_cmplx_int_type* out, 
 void DASH_BLAS_TRANSPOSE_int_nb(dash_cmplx_int_type** in, dash_cmplx_int_type** out, size_t* ROWS, size_t* COLS, bool* conjugate, cedr_barrier_t* kernel_barrier);
 
 /*
+ * ${Comments about usage of DASH_FIR}
+ */
+void DASH_FIR_flt(dash_cmplx_flt_type* input, dash_cmplx_flt_type* filter, dash_cmplx_flt_type* output, size_t input_len, size_t filter_len, size_t rshift);
+void DASH_FIR_flt_nb(dash_cmplx_flt_type** input, dash_cmplx_flt_type** filter, dash_cmplx_flt_type** output, size_t* input_len, size_t* filter_len, size_t* rshift, cedr_barrier_t* kernel_barrier);
+
+void DASH_FIR_int(dash_cmplx_int_type* input, dash_cmplx_int_type* filter, dash_cmplx_int_type* output, size_t input_len, size_t filter_len, size_t rshift);
+void DASH_FIR_int_nb(dash_cmplx_int_type** input, dash_cmplx_int_type** filter, dash_cmplx_int_type** output, size_t* input_len, size_t* filter_len, size_t* rshift, cedr_barrier_t* kernel_barrier);
+
+/*
+ * io_len: length of the input (and thus correspondingly also the output)
+ * window_len: length of the window to be generated internally
+ */
+void DASH_SpectralOpening_flt(dash_cmplx_flt_type* input, dash_cmplx_flt_type *output, size_t io_len, size_t window_len);
+void DASH_SpectralOpening_flt_nb(dash_cmplx_flt_type** input, dash_cmplx_flt_type** output, size_t* io_len, size_t* window_len, cedr_barrier_t* kernel_barrier);
+
+void DASH_SpectralOpening_int(dash_cmplx_int_type* input, dash_cmplx_int_type *output, size_t io_len, size_t window_len);
+void DASH_SpectralOpening_int_nb(dash_cmplx_int_type** input, dash_cmplx_int_type** output, size_t* io_len, size_t* window_len, cedr_barrier_t* kernel_barrier);
+
+/*
+ * r: rate change
+ * m: differential delay
+ * n: length
+ * isUp: direction of rate change
+ */
+void DASH_CIC_flt(dash_cmplx_flt_type* input, dash_cmplx_flt_type* output, size_t input_len, unsigned int r, unsigned int m, unsigned int n, bool is_up);
+void DASH_CIC_flt_nb(dash_cmplx_flt_type** input, dash_cmplx_flt_type** output, size_t* input_len, unsigned int* r, unsigned int* m, unsigned int* n, bool* is_up, cedr_barrier_t* kernel_barrier);
+
+void DASH_CIC_int(dash_cmplx_int_type* input, dash_cmplx_int_type* output, size_t input_len, unsigned int r, unsigned int m, unsigned int n, bool is_up);
+void DASH_CIC_int_nb(dash_cmplx_int_type** input, dash_cmplx_int_type** output, size_t* input_len, unsigned int* r, unsigned int* m, unsigned int* n, bool* is_up, cedr_barrier_t* kernel_barrier);
+
+/*
  * nsymbols: number of symbols in input
  * input should be of length 2*nsymbols (in the input[2*i] = real, input[2*i+1] = imaginary format)
  */
@@ -86,8 +114,11 @@ void DASH_BPSK_flt_nb(dash_cmplx_flt_type** input, dash_re_flt_type** output, si
 void DASH_QAM16_flt(dash_cmplx_flt_type* input, int* output, size_t nsymbols);
 void DASH_QAM16_flt_nb(dash_cmplx_flt_type** input, int** output, size_t* nsymbols, cedr_barrier_t* kernel_barrier);
 
-void DASH_CONV_2D_int(dash_re_int_type *input, int height, int width, dash_re_flt_type *mask, int mask_size, dash_re_int_type *output);
-void DASH_CONV_2D_int_nb(dash_re_int_type **input, int *height, int *width, dash_re_flt_type **mask, int *mask_size, dash_re_int_type **output, cedr_barrier_t* kernel_barrier);
+void DASH_CONV_2D_flt(dash_re_flt_type *input, int height, int width, dash_re_flt_type *mask, int mask_size, dash_re_flt_type *output);
+void DASH_CONV_2D_flt_nb(dash_re_flt_type **input, int *height, int *width, dash_re_flt_type **mask, int *mask_size, dash_re_flt_type **output, cedr_barrier_t* kernel_barrier);
+
+void DASH_CONV_2D_int(dash_re_int16_type *input, int height, int width, dash_re_flt_type *mask, int mask_size, dash_re_int16_type *output);
+void DASH_CONV_2D_int_nb(dash_re_int16_type **input, int *height, int *width, dash_re_flt_type **mask, int *mask_size, dash_re_int16_type **output, cedr_barrier_t* kernel_barrier);
 
 void DASH_CONV_1D_flt(dash_re_flt_type* input, int size, dash_re_flt_type* mask, int mask_size, dash_re_flt_type* output);
 void DASH_CONV_1D_flt_nb(dash_re_flt_type** input, int* size, dash_re_flt_type** mask, int* mask_size, dash_re_flt_type** output, cedr_barrier_t* kernel_barrier);

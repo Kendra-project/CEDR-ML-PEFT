@@ -8,7 +8,7 @@
 See our list of publications on [the project website](https://ua-rcl.github.io/projects/cedr/)
 
 ## Build dependencies and the Docker development container
-If you are on a debian-based system or otherwise have `apt` available, all required packages for cross compilation/etc can be installed through `install_dependencies.sh`.
+If you are on a debian-based system or otherwise have `apt` available (developed on Ubuntu 18.04 LTS), all required packages for cross compilation/etc can be installed through `install_dependencies.sh`.
 
 If you have [Docker](https://www.docker.com) available, a [development container](https://hub.docker.com/r/mackncheesiest/cedr_dev) can be setup that installs all prerequisites as required for both `x86` and `aarch64` cross-compilation development. 
 The container can be built directly with

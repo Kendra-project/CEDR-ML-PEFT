@@ -4,77 +4,84 @@
 #include <stdio.h>
 #include <string.h>
 #include <complex.h>
-#include "SAR_RDA.hpp"
-#include "../include/DashExtras.h"
-#include "../include/gsl_fft_mex.c"
-#include "../include/gsl_ifft_mex.c"
+#include <fftw3.h>
 #include <cstdint>
 #include <dlfcn.h>
 
-//#define PROGPATH DASH_DATA "Dash-RadioCorpus/SAR_RDA/"
-//#define PROGPATH DASH_DATA
+#include "SAR_RDA.hpp"
+#include "dash.h"
+
 #define PROGPATH "./input/"
 #define RAWDATA PROGPATH "rawdata_rda.txt"
 #define OUTPUT "SAR_RDA-output.txt"
 
 /***************************/
-double *ta;
-double *trng;
+float *ta;
+float *trng;
 
-double *g;
-double *g2;
+float *g;
+float *g2;
 
-double *S1;
+float *S1;
 
-double *src;
-double *H;
+float *src;
+float *H;
 
-double *sac;
-double *s0;
+float *sac;
+float *s0;
 /***************************/
 
-double *_ta;
-double *_trng;
+float *_ta;
+float *_trng;
 
-double *_g;
-double *_g2;
+float *_g;
+float *_g2;
 
-double *_S1;
+float *_S1;
 
-double *_src;
-double *_H;
+float *_src;
+float *_H;
 
 
-double R0;
-double Ka;
+float R0;
+float Ka;
 
-double *_sac;
-double *_s0;
+float *_sac;
+float *_s0;
 
 int Nslow;
 int Nfast;
-double v;
-double Xmin;
-double Xmax;
-double Yc;
-double Y0;
-double Tr;
-double Kr;
-double h;
-double lambda;
-double c;
-double Rmin, Rmax;
+float v;
+float Xmin;
+float Xmax;
+float Yc;
+float Y0;
+float Tr;
+float Kr;
+float h;
+float lambda;
+float c;
+float Rmin, Rmax;
+
+fftwf_complex *in_x1, *out_x1, *in_x2, *out_x2, *in_x3, *out_x3, *in_x4, *out_x4, *in_x5, *out_x5;
+fftwf_plan p1, p2, p3, p4, p5;
+
+fftwf_complex *_in_x1, *_out_x1, *_in_x2, *_out_x2, *_in_x3, *_out_x3, *_in_x4, *_out_x4, *_in_x5, *_out_x5;
+fftwf_plan _p1, _p2, _p3, _p4, _p5;
 
 // Pointer to use to hold the shared object file handle
 void *dlhandle;
-void (*dash_fft_func)(double**, double**, size_t*, bool*);
+//void (*dash_fft_func)(float**, float**, size_t*, bool*);
+
+void (*fft_accel_func)(dash_cmplx_flt_type**, dash_cmplx_flt_type**, size_t*, bool*, uint8_t);
+void (*ifft_accel_func)(dash_cmplx_flt_type**, dash_cmplx_flt_type**, size_t*, bool*, uint8_t);
+
+__attribute__((__visibility__("default"))) thread_local unsigned int __CEDR_CLUSTER_IDX__ = 0;
 
 void __attribute__((constructor)) setup(void) {	
   printf("[SAR_RDA] intializing variables\n");
   
   c = 3e8;
-
-	
   Nslow = 256;
   Nfast = 512;
   v = 150;
@@ -88,38 +95,74 @@ void __attribute__((constructor)) setup(void) {
   lambda = 0.0566;
  
 /*******************************************************/ 
-  ta = (double *) malloc(Nslow * sizeof(double));
-  trng = (double *) malloc(Nfast * sizeof(double));
+  ta = (float *) malloc(Nslow * sizeof(float));
+  trng = (float *) malloc(Nfast * sizeof(float));
 	
-  g = (double *) malloc(2 * Nfast * sizeof(double));
-  g2 = (double *) malloc(2 * Nfast * sizeof(double));
+  g = (float *) malloc(2 * Nfast * sizeof(float));
+  g2 = (float *) malloc(2 * Nfast * sizeof(float));
   
-  S1 = (double *) malloc(2 * Nfast * Nslow * sizeof(double)); 
+  S1 = (float *) malloc(2 * Nfast * Nslow * sizeof(float)); 
   
-  H = (double *) malloc(2 * Nslow * sizeof(double));
+  H = (float *) malloc(2 * Nslow * sizeof(float));
   
-  src = (double *) malloc(2 * Nfast * Nslow * sizeof(double)); 
+  src = (float *) malloc(2 * Nfast * Nslow * sizeof(float)); 
   
-  s0 = (double *) malloc(2 * Nslow * Nfast * sizeof(double)); //SAR_LFM_2 & SAR_node_1
-  sac = (double *) malloc(Nslow * Nfast * sizeof(double));  
+  s0 = (float *) malloc(2 * Nslow * Nfast * sizeof(float)); //SAR_LFM_2 & SAR_node_1
+  sac = (float *) malloc(Nslow * Nfast * sizeof(float));  
 /*******************************************************/
 
-  _ta = (double *) malloc(Nslow * sizeof(double));
-  _trng = (double *) malloc(Nfast * sizeof(double));
+  _ta = (float *) malloc(Nslow * sizeof(float));
+  _trng = (float *) malloc(Nfast * sizeof(float));
 	
-  _g = (double *) malloc(2 * Nfast * sizeof(double));
-  _g2 = (double *) malloc(2 * Nfast * sizeof(double));
+  _g = (float *) malloc(2 * Nfast * sizeof(float));
+  _g2 = (float *) malloc(2 * Nfast * sizeof(float));
   
-  _S1 = (double *) malloc(2 * Nfast * Nslow * sizeof(double)); 
+  _S1 = (float *) malloc(2 * Nfast * Nslow * sizeof(float)); 
   
-  _H = (double *) malloc(2 * Nslow * sizeof(double));
+  _H = (float *) malloc(2 * Nslow * sizeof(float));
   
-  _src = (double *) malloc(2 * Nfast * Nslow * sizeof(double));  
+  _src = (float *) malloc(2 * Nfast * Nslow * sizeof(float));  
   
-  _s0 = (double *) malloc(2 * Nslow * Nfast * sizeof(double)); //SAR_LFM_2 & SAR_node_1
-  _sac = (double *) malloc(Nslow * Nfast * sizeof(double));
+  _s0 = (float *) malloc(2 * Nslow * Nfast * sizeof(float)); //SAR_LFM_2 & SAR_node_1
+  _sac = (float *) malloc(Nslow * Nfast * sizeof(float));
 /*******************************************************/ 
   
+  in_x1 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+  out_x1 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+  in_x2 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+  out_x2 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+  in_x3 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+  out_x3 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+
+  in_x4 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nslow);
+  out_x4 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nslow);
+  in_x5 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nslow);
+  out_x5 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nslow);
+
+  p1 = fftwf_plan_dft_1d(Nfast, in_x1, out_x1, FFTW_FORWARD, FFTW_ESTIMATE);
+  p2 = fftwf_plan_dft_1d(Nfast, in_x2, out_x2, FFTW_FORWARD, FFTW_ESTIMATE);
+  p3 = fftwf_plan_dft_1d(Nfast, in_x3, out_x3, FFTW_BACKWARD, FFTW_ESTIMATE);
+  p4 = fftwf_plan_dft_1d(Nslow, in_x4, out_x4, FFTW_FORWARD, FFTW_ESTIMATE);
+  p5 = fftwf_plan_dft_1d(Nslow, in_x5, out_x5, FFTW_BACKWARD, FFTW_ESTIMATE);
+
+  _in_x1 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+  _out_x1 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+  _in_x2 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+  _out_x2 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+  _in_x3 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+  _out_x3 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nfast);
+
+  _in_x4 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nslow);
+  _out_x4 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nslow);
+  _in_x5 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nslow);
+  _out_x5 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * Nslow);
+
+  _p1 = fftwf_plan_dft_1d(Nfast, _in_x1, _out_x1, FFTW_FORWARD, FFTW_ESTIMATE);
+  _p2 = fftwf_plan_dft_1d(Nfast, _in_x2, _out_x2, FFTW_FORWARD, FFTW_ESTIMATE);
+  _p3 = fftwf_plan_dft_1d(Nfast, _in_x3, _out_x3, FFTW_BACKWARD, FFTW_ESTIMATE);
+  _p4 = fftwf_plan_dft_1d(Nslow, _in_x4, _out_x4, FFTW_FORWARD, FFTW_ESTIMATE);
+  _p5 = fftwf_plan_dft_1d(Nslow, _in_x5, _out_x5, FFTW_BACKWARD, FFTW_ESTIMATE);
+
   Rmin = sqrt((Yc - Y0) * (Yc - Y0) + h * h);
   Rmax = sqrt((Yc + Y0) * (Yc + Y0) + h * h);
   
@@ -129,9 +172,13 @@ void __attribute__((constructor)) setup(void) {
 	if (dlhandle == nullptr) {
 		printf("Unable to open FFT shared object!\n");
 	} else {
-		dash_fft_func = (void(*)(double**, double**, size_t*, bool*)) dlsym(dlhandle, "DASH_FFT_fft");
-		if (dash_fft_func == nullptr) {
-			printf("Unable to get function handle for DASH_FFT_fft accelerator function!\n");
+		fft_accel_func = (void(*)(dash_cmplx_flt_type**, dash_cmplx_flt_type**, size_t*, bool*, uint8_t)) dlsym(dlhandle, "DASH_FFT_flt_fft");
+		if (fft_accel_func == nullptr) {
+			printf("Unable to get function handle for FFT accelerator function!\n");
+		}
+		ifft_accel_func = (void(*)(dash_cmplx_flt_type**, dash_cmplx_flt_type**, size_t*, bool*, uint8_t)) dlsym(dlhandle, "DASH_FFT_flt_fft");
+		if (ifft_accel_func == nullptr) {
+			printf("Unable to get function handle for IFFT accelerator function!\n");
 		}
 	}
   
@@ -172,6 +219,39 @@ void __attribute__((destructor)) clean_app(void){
 	free(_sac);
 	free(_s0);
 
+	fftwf_destroy_plan(p1);
+	fftwf_destroy_plan(p2);
+	fftwf_destroy_plan(p3);
+	fftwf_destroy_plan(p4);
+	fftwf_destroy_plan(p5);
+	fftwf_destroy_plan(_p1);
+	fftwf_destroy_plan(_p2);
+	fftwf_destroy_plan(_p3);
+	fftwf_destroy_plan(_p4);
+	fftwf_destroy_plan(_p5);
+
+	fftwf_free(in_x1);
+	fftwf_free(out_x1);
+	fftwf_free(in_x2);
+	fftwf_free(out_x2);
+	fftwf_free(in_x3);
+	fftwf_free(out_x3);
+	fftwf_free(in_x4);
+	fftwf_free(out_x4);
+	fftwf_free(in_x5);
+	fftwf_free(out_x5);
+
+	fftwf_free(_in_x1);
+	fftwf_free(_out_x1);
+	fftwf_free(_in_x2);
+	fftwf_free(_out_x2);
+	fftwf_free(_in_x3);
+	fftwf_free(_out_x3);
+	fftwf_free(_in_x4);
+	fftwf_free(_out_x4);
+	fftwf_free(_in_x5);
+	fftwf_free(_out_x5);
+
 	if (dlhandle != nullptr) {
 		dlclose(dlhandle);
 	}
@@ -182,19 +262,34 @@ void __attribute__((destructor)) clean_app(void){
 }
 
 /* Function Declarations */
-//void swap(double *, double *);
-//void fftshift(double *, double);
+//void swap(float *, float *);
+//void fftshift(float *, float);
+
+void fftwf_fft(float *input_array, fftwf_complex *in, fftwf_complex *out, float *output_array, size_t n_elements, fftwf_plan p) {
+    for(size_t i = 0; i < 2*n_elements; i+=2)
+    {
+		in[i/2][0] = input_array[i];
+        in[i/2][1] = input_array[i+1];
+	}
+    fftwf_execute(p);
+    for(size_t i = 0; i < 2*n_elements; i+=2)
+    {
+        output_array[i] = (float) out[i/2][0];
+        output_array[i+1] = (float) out[i/2][1];
+    }
+}
+
 
 /**************** Kernels ****************/
-void swap(double *v1, double *v2) {
+void swap(float *v1, float *v2) {
   float tmp = *v1;
   *v1 = *v2;
   *v2 = tmp;
 }
 
-void fftshift(double *data, double count) {
+void fftshift(float *data, float count) {
   int k;
-  int c = (double)floor((float)count / 2);
+  int c = (float)floor((float)count / 2);
   // For odd and for even numbers of element use different algorithm
   if ((int)count % 2 == 0) {
     for (k = 0; k < 2 * c; k += 2) {
@@ -202,8 +297,8 @@ void fftshift(double *data, double count) {
       swap(&data[k + 1], &data[k + 1 + 2 * c]);
     }
   } else {
-    double tmp1 = data[0];
-    double tmp2 = data[1];
+    float tmp1 = data[0];
+    float tmp2 = data[1];
     for (k = 0; k < 2 * c; k += 2) {
       data[k] = data[2 * c + k + 2];
       data[k + 1] = data[2 * c + k + 3];
@@ -240,7 +335,8 @@ extern "C" void SAR_LFM_1(void){
 		
 	  }
 	  //  KERN_ENTER(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));
-		  gsl_fft(g, g2, Nfast);
+		  fftwf_fft(g, in_x1, out_x1, g2, Nfast, p1);
+		  //gsl_fft(g, g2, Nfast);
 	  //  KERN_EXIT(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));	  
   } else {
 	    // Create range vector
@@ -259,7 +355,8 @@ extern "C" void SAR_LFM_1(void){
 	  }
 	  
 	  //  KERN_ENTER(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));
-		  gsl_fft(_g, _g2, Nfast);
+		  fftwf_fft(_g, _in_x1, _out_x1, _g2, Nfast, _p1);
+		  //gsl_fft(_g, _g2, Nfast);
 	  //  KERN_EXIT(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));
   }
   select1 = !select1;
@@ -267,8 +364,8 @@ extern "C" void SAR_LFM_1(void){
 }
 
 extern "C" void SAR_LFM_2(void){
-  double R0;
-  double Ka;
+  float R0;
+  float Ka;
   
   int i;
   FILE *fp;
@@ -284,7 +381,7 @@ extern "C" void SAR_LFM_2(void){
   if(select2){
 	  fp = fopen(RAWDATA, "r");
 	  for (i = 0; i < 2 * Nslow * Nfast; i++) {
-		fscanf(fp, "%lf", &s0[i]);
+		fscanf(fp, "%f", &s0[i]);
 	  }	 
 	   fclose(fp);	
 	  // Create azimuth vector
@@ -307,7 +404,7 @@ extern "C" void SAR_LFM_2(void){
   } else {
 	  _fp = fopen(RAWDATA, "r");
 	  for (i = 0; i < 2 * Nslow * Nfast; i++) {
-		fscanf(_fp, "%lf", &_s0[i]);
+		fscanf(_fp, "%f", &_s0[i]);
 	  }  
 	    fclose(_fp);
 		  // Create azimuth vector
@@ -333,19 +430,19 @@ extern "C" void SAR_LFM_2(void){
 
 extern "C" void SAR_node_1_cpu(void){
   printf("[SAR_RDA] SAR_node_1 execution begun\n");
-  double *fft_arr;
-  double *temp;
-  double *temp2;
-  double *temp3;	
+  float *fft_arr;
+  float *temp;
+  float *temp2;
+  float *temp3;	
   
   int i, j;
   
   static bool select3 = true;
 	
-  fft_arr = (double*) malloc(2 * Nfast * sizeof(double));
-  temp = (double*) malloc(2 * Nfast * sizeof(double));
-  temp2 = (double*) malloc(2 * Nfast * sizeof(double));
-  temp3 = (double*) malloc(2 * Nfast * sizeof(double));	
+  fft_arr = (float*) malloc(2 * Nfast * sizeof(float));
+  temp = (float*) malloc(2 * Nfast * sizeof(float));
+  temp2 = (float*) malloc(2 * Nfast * sizeof(float));
+  temp3 = (float*) malloc(2 * Nfast * sizeof(float));	
 	
   if(select3){
 	  for (i = 0; i < Nslow; i++) {
@@ -353,7 +450,8 @@ extern "C" void SAR_node_1_cpu(void){
 		  fft_arr[j] = s0[j + i * 2 * Nfast];
 		}
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));
-		gsl_fft(fft_arr, temp, Nfast);
+		fftwf_fft(fft_arr, in_x2, out_x2, temp, Nfast, p2);
+		//gsl_fft(fft_arr, temp, Nfast);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));
 		fftshift(temp, Nfast);
 		//KERN_ENTER(make_label("ZIP[multiply][%d][float64][complex]", Nfast));
@@ -363,7 +461,8 @@ extern "C" void SAR_node_1_cpu(void){
 		}
 		//KERN_EXIT(make_label("ZIP[multiply][%d][float64][complex]", Nfast));
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][backward]", Nfast));
-		gsl_ifft(temp2, temp3, Nfast);
+		fftwf_fft(temp2, in_x3, out_x3, temp3, Nfast, p3);
+		//gsl_ifft(temp2, temp3, Nfast);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][backward]", Nfast));
 		for (j = 0; j < 2 * Nfast; j += 2) {
 		  src[j * Nslow + 2 * i] = temp3[j];
@@ -376,7 +475,8 @@ extern "C" void SAR_node_1_cpu(void){
 		  fft_arr[j] = _s0[j + i * 2 * Nfast];
 		}
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));
-		gsl_fft(fft_arr, temp, Nfast);
+		fftwf_fft(fft_arr, _in_x2, _out_x2, temp, Nfast, _p2);
+		//gsl_fft(fft_arr, temp, Nfast);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));
 		fftshift(temp, Nfast);
 		//KERN_ENTER(make_label("ZIP[multiply][%d][float64][complex]", Nfast));
@@ -386,7 +486,8 @@ extern "C" void SAR_node_1_cpu(void){
 		}
 		//KERN_EXIT(make_label("ZIP[multiply][%d][float64][complex]", Nfast));
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][backward]", Nfast));
-		gsl_ifft(temp2, temp3, Nfast);
+		fftwf_fft(temp2, _in_x3, _out_x3, temp3, Nfast, _p3);
+		//gsl_ifft(temp2, temp3, Nfast);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][backward]", Nfast));
 		for (j = 0; j < 2 * Nfast; j += 2) {
 		  _src[j * Nslow + 2 * i] = temp3[j];
@@ -407,10 +508,10 @@ extern "C" void SAR_node_1_cpu(void){
 
 extern "C" void SAR_node_1_acc(void){
   printf("[SAR_RDA] SAR_node_1 execution begun\n");
-  double *fft_arr;
-  double *temp;
-  double *temp2;
-  double *temp3;	
+  float *fft_arr;
+  float *temp;
+  float *temp2;
+  float *temp3;	
   
   int i, j;
   
@@ -419,10 +520,10 @@ extern "C" void SAR_node_1_acc(void){
   bool fwdFFT = true;
   bool invFFT = false;
 	
-  fft_arr = (double*) malloc(2 * Nfast * sizeof(double));
-  temp = (double*) malloc(2 * Nfast * sizeof(double));
-  temp2 = (double*) malloc(2 * Nfast * sizeof(double));
-  temp3 = (double*) malloc(2 * Nfast * sizeof(double));	
+  fft_arr = (float*) malloc(2 * Nfast * sizeof(float));
+  temp = (float*) malloc(2 * Nfast * sizeof(float));
+  temp2 = (float*) malloc(2 * Nfast * sizeof(float));
+  temp3 = (float*) malloc(2 * Nfast * sizeof(float));	
 	
   if(select3){
 	  for (i = 0; i < Nslow; i++) {
@@ -431,7 +532,7 @@ extern "C" void SAR_node_1_acc(void){
 		}
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));
 		//gsl_fft(fft_arr, temp, Nfast);
-		(*dash_fft_func)(&fft_arr, &temp, &size, &fwdFFT);
+		(*fft_accel_func)(((dash_cmplx_flt_type**)&fft_arr), ((dash_cmplx_flt_type**)&temp), &size, &fwdFFT, __CEDR_CLUSTER_IDX__);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));
 		fftshift(temp, Nfast);
 		//KERN_ENTER(make_label("ZIP[multiply][%d][float64][complex]", Nfast));
@@ -442,7 +543,7 @@ extern "C" void SAR_node_1_acc(void){
 		//KERN_EXIT(make_label("ZIP[multiply][%d][float64][complex]", Nfast));
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][backward]", Nfast));
 		//gsl_ifft(temp2, temp3, Nfast);
-		(*dash_fft_func)(&temp2, &temp3, &size, &invFFT);
+		(*fft_accel_func)(((dash_cmplx_flt_type**)&temp2), ((dash_cmplx_flt_type**)&temp3), &size, &invFFT, __CEDR_CLUSTER_IDX__);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][backward]", Nfast));
 		for (j = 0; j < 2 * Nfast; j += 2) {
 		  src[j * Nslow + 2 * i] = temp3[j];
@@ -455,7 +556,7 @@ extern "C" void SAR_node_1_acc(void){
 		  fft_arr[j] = _s0[j + i * 2 * Nfast];
 		}
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));
-		(*dash_fft_func)(&fft_arr, &temp, &size, &fwdFFT);
+		(*fft_accel_func)(((dash_cmplx_flt_type**)&fft_arr), ((dash_cmplx_flt_type**)&temp), &size, &fwdFFT, __CEDR_CLUSTER_IDX__);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][forward]", Nfast));
 		fftshift(temp, Nfast);
 		//KERN_ENTER(make_label("ZIP[multiply][%d][float64][complex]", Nfast));
@@ -466,7 +567,7 @@ extern "C" void SAR_node_1_acc(void){
 		//KERN_EXIT(make_label("ZIP[multiply][%d][float64][complex]", Nfast));
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][backward]", Nfast));
 		//gsl_ifft(temp2, temp3, Nfast);
-		(*dash_fft_func)(&temp2, &temp3, &size, &invFFT);
+		(*fft_accel_func)(((dash_cmplx_flt_type**)&temp2), ((dash_cmplx_flt_type**)&temp3), &size, &invFFT, __CEDR_CLUSTER_IDX__);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][backward]", Nfast));
 		for (j = 0; j < 2 * Nfast; j += 2) {
 		  _src[j * Nslow + 2 * i] = temp3[j];
@@ -486,14 +587,14 @@ extern "C" void SAR_node_1_acc(void){
 }
 
 extern "C" void SAR_node_2_cpu(void){
-  double *temp4;
-  double *fft_arr_2;
+  float *temp4;
+  float *fft_arr_2;
   int i, j;
   
   static bool select4 = true;
   
-  fft_arr_2 = (double*) malloc(2 * Nslow * sizeof(double));
-  temp4 = (double*) malloc(2 * Nslow * sizeof(double));
+  fft_arr_2 = (float*) malloc(2 * Nslow * sizeof(float));
+  temp4 = (float*) malloc(2 * Nslow * sizeof(float));
   
   if(select4){
 	  // Azimuth FFT
@@ -503,7 +604,8 @@ extern "C" void SAR_node_2_cpu(void){
 		  fft_arr_2[j + 1] = src[j + 1 + i * 2 * Nslow];
 		}
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][forward]", Nslow));
-		gsl_fft(fft_arr_2, temp4, Nslow);
+		fftwf_fft(fft_arr_2, in_x4, out_x4, temp4, Nslow, p4);
+		//gsl_fft(fft_arr_2, temp4, Nslow);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][forward]", Nslow));
 		fftshift(temp4, Nslow);
 		for (j = 0; j < 2 * Nslow; j += 2) {
@@ -519,7 +621,8 @@ extern "C" void SAR_node_2_cpu(void){
 		  fft_arr_2[j + 1] = _src[j + 1 + i * 2 * Nslow];
 		}
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][forward]", Nslow));
-		gsl_fft(fft_arr_2, temp4, Nslow);
+		fftwf_fft(fft_arr_2, _in_x4, _out_x4, temp4, Nslow, _p4);
+		//gsl_fft(fft_arr_2, temp4, Nslow);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][forward]", Nslow));
 		fftshift(temp4, Nslow);
 		for (j = 0; j < 2 * Nslow; j += 2) {
@@ -536,16 +639,16 @@ extern "C" void SAR_node_2_cpu(void){
 }
 
 extern "C" void SAR_node_2_acc(void){
-  double *temp4;
-  double *fft_arr_2;
+  float *temp4;
+  float *fft_arr_2;
   int i, j;
   size_t len = 256;
   bool isFwd = true;
   
   static bool select4 = true;
   
-  fft_arr_2 = (double*) malloc(2 * Nslow * sizeof(double));
-  temp4 = (double*) malloc(2 * Nslow * sizeof(double));
+  fft_arr_2 = (float*) malloc(2 * Nslow * sizeof(float));
+  temp4 = (float*) malloc(2 * Nslow * sizeof(float));
   
   if(select4){
 	  // Azimuth FFT
@@ -555,7 +658,7 @@ extern "C" void SAR_node_2_acc(void){
 		  fft_arr_2[j + 1] = src[j + 1 + i * 2 * Nslow];
 		}
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][forward]", Nslow));
-		(*dash_fft_func)(&fft_arr_2, &temp4, &len, &isFwd);
+		(*fft_accel_func)(((dash_cmplx_flt_type**)&fft_arr_2), ((dash_cmplx_flt_type**)&temp4), &len, &isFwd, __CEDR_CLUSTER_IDX__);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][forward]", Nslow));
 		fftshift(temp4, Nslow);
 		for (j = 0; j < 2 * Nslow; j += 2) {
@@ -571,7 +674,7 @@ extern "C" void SAR_node_2_acc(void){
 		  fft_arr_2[j + 1] = _src[j + 1 + i * 2 * Nslow];
 		}
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][forward]", Nslow));
-		(*dash_fft_func)(&fft_arr_2, &temp4, &len, &isFwd);
+		(*fft_accel_func)(((dash_cmplx_flt_type**)&fft_arr_2), ((dash_cmplx_flt_type**)&temp4), &len, &isFwd, __CEDR_CLUSTER_IDX__);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][forward]", Nslow));
 		fftshift(temp4, Nslow);
 		for (j = 0; j < 2 * Nslow; j += 2) {
@@ -587,17 +690,17 @@ extern "C" void SAR_node_2_acc(void){
 }
 
 extern "C" void SAR_node_3_cpu(void){
-  double *fft_arr_4;
-  double *temp8;
-  double *temp9;	
+  float *fft_arr_4;
+  float *temp8;
+  float *temp9;	
   
   int i, j;
   
   static bool select5 = true;
   
-  fft_arr_4 = (double*) malloc(2 * Nslow * sizeof(double));
-  temp8 = (double*) malloc(2 * Nslow * sizeof(double));
-  temp9 = (double*) malloc(2 * Nslow * sizeof(double));
+  fft_arr_4 = (float*) malloc(2 * Nslow * sizeof(float));
+  temp8 = (float*) malloc(2 * Nslow * sizeof(float));
+  temp9 = (float*) malloc(2 * Nslow * sizeof(float));
 
   if(select5){
 	  // ZIP & IFFT
@@ -612,7 +715,8 @@ extern "C" void SAR_node_3_cpu(void){
 		}
 		//KERN_EXIT(make_label("ZIP[multiply][%d][float64][complex]", Nslow));
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][backward]", Nslow));
-		gsl_ifft(fft_arr_4, temp9, Nslow);
+		fftwf_fft(fft_arr_4, in_x5, out_x5, temp9, Nslow, p5);
+		//gsl_ifft(fft_arr_4, temp9, Nslow);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][backward]", Nslow));
 		fftshift(temp9, Nslow);
 		for (j = 0; j < Nslow; j++) {
@@ -632,7 +736,8 @@ extern "C" void SAR_node_3_cpu(void){
 		}
 		//KERN_EXIT(make_label("ZIP[multiply][%d][float64][complex]", Nslow));
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][backward]", Nslow));
-		gsl_ifft(fft_arr_4, temp9, Nslow);
+		fftwf_fft(fft_arr_4, _in_x5, _out_x5, temp9, Nslow, _p5);
+		//gsl_ifft(fft_arr_4, temp9, Nslow);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][backward]", Nslow));
 		fftshift(temp9, Nslow);
 		for (j = 0; j < Nslow; j++) {
@@ -647,9 +752,9 @@ extern "C" void SAR_node_3_cpu(void){
 }
 
 extern "C" void SAR_node_3_acc(void){
-  double *fft_arr_4;
-  double *temp8;
-  double *temp9;	
+  float *fft_arr_4;
+  float *temp8;
+  float *temp9;	
   
   int i, j;
 
@@ -658,9 +763,9 @@ extern "C" void SAR_node_3_acc(void){
   
   static bool select5 = true;
   
-  fft_arr_4 = (double*) malloc(2 * Nslow * sizeof(double));
-  temp8 = (double*) malloc(2 * Nslow * sizeof(double));
-  temp9 = (double*) malloc(2 * Nslow * sizeof(double));
+  fft_arr_4 = (float*) malloc(2 * Nslow * sizeof(float));
+  temp8 = (float*) malloc(2 * Nslow * sizeof(float));
+  temp9 = (float*) malloc(2 * Nslow * sizeof(float));
 
   if(select5){
 	  // ZIP & IFFT
@@ -675,7 +780,7 @@ extern "C" void SAR_node_3_acc(void){
 		}
 		//KERN_EXIT(make_label("ZIP[multiply][%d][float64][complex]", Nslow));
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][backward]", Nslow));
-		(*dash_fft_func)(&fft_arr_4, &temp9, &len, &isFwd);
+		(*fft_accel_func)(((dash_cmplx_flt_type**)&fft_arr_4), ((dash_cmplx_flt_type**)&temp9), &len, &isFwd, __CEDR_CLUSTER_IDX__);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][backward]", Nslow));
 		fftshift(temp9, Nslow);
 		for (j = 0; j < Nslow; j++) {
@@ -695,7 +800,7 @@ extern "C" void SAR_node_3_acc(void){
 		}
 		//KERN_EXIT(make_label("ZIP[multiply][%d][float64][complex]", Nslow));
 		//KERN_ENTER(make_label("FFT[1D][%d][complex][float64][backward]", Nslow));
-		(*dash_fft_func)(&fft_arr_4, &temp9, &len, &isFwd);
+		(*fft_accel_func)(((dash_cmplx_flt_type**)&fft_arr_4), ((dash_cmplx_flt_type**)&temp9), &len, &isFwd, __CEDR_CLUSTER_IDX__);
 		//KERN_EXIT(make_label("FFT[1D][%d][complex][float64][backward]", Nslow));
 		fftshift(temp9, Nslow);
 		for (j = 0; j < Nslow; j++) {
@@ -743,3 +848,4 @@ extern "C" void SAR_node_4(void){
 
 int main(int argc, char *argv[]) {
 }
+

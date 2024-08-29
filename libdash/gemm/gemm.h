@@ -41,15 +41,18 @@ typedef struct gemm_cmplx_type {
 #define REQUIRED_BUFFER_SIZE ((INPUT_DIM + OUTPUT_DIM) * sizeof(float))
 static_assert(UDMABUF_PARTITION_SIZE >= REQUIRED_BUFFER_SIZE, "Current udmabuf size is too small to support this many GEMMs!");
 
-//#define __DASH_GEMM_DEBUG__
+#define __DASH_GEMM_DEBUG__
 
 #ifdef LOG
 #undef LOG
 #endif
 
-#ifdef __DASH_GEMM_DEBUG__
+#ifdef defined(__DASH_GEMM_DEBUG__) && !defined(MEASURE_PERFORMANCE)
 #define LOG(...) printf(__VA_ARGS__)
 #else
 #define LOG(...)
-
 #endif
+
+
+
+

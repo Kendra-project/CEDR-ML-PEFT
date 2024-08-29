@@ -1,3 +1,22 @@
+LIBDASH_INC ?= ../../../libdash
+
+riscv64:
+	mkdir -p ../target/riscv64
+	g++ \
+		-I../include \
+		-I $(LIBDASH_INC) \
+		-shared \
+		-fPIC \
+		-DARM \
+		-DEXPERIMENT \
+		-o "../target/riscv64/pulse_doppler-riscv64.so" \
+		pulse_doppler.cpp \
+		-lm \
+		-lfftw3f
+	cp "pulse_doppler.json" ../target/riscv64/pulse_doppler-riscv64.json
+	sed -i "s/pulse_doppler.so/pulse_doppler-riscv64.so/g" ../target/riscv64/pulse_doppler-riscv64.json
+
+
 x86:
 	mkdir -p ../target/x86
 	clang++ \
@@ -22,6 +41,27 @@ arm:
 		-g \
 		-fPIC \
 		-DARM \
+		-o "../target/ARM/pulse_doppler-aarch64.so" \
+		pulse_doppler.cpp \
+		../../../toolchains/aarch64-linux-gnu/lib/libfftw3f.a \
+		-lm
+	cp "pulse_doppler.json" ../target/ARM/pulse_doppler-aarch64.json
+	sed -i "s/pulse_doppler.so/pulse_doppler-aarch64.so/g" ../target/ARM/pulse_doppler-aarch64.json
+
+arm_exp:
+	mkdir -p ../target/ARM
+	clang++ \
+		-march=armv8-a \
+		-target aarch64-linux-gnu \
+		-I/usr/aarch64-linux-gnu/include/c++/7/aarch64-linux-gnu \
+		-I/usr/aarch64-linux-gnu/include \
+		-I../include \
+		-shared \
+		-g \
+		-fPIC \
+		-O3 \
+		-DARM \
+		-DEXPERIMENT \
 		-o "../target/ARM/pulse_doppler-aarch64.so" \
 		pulse_doppler.cpp \
 		../../../toolchains/aarch64-linux-gnu/lib/libfftw3f.a \

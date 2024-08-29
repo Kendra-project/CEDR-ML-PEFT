@@ -21,6 +21,9 @@
 #define SIGMA 0.75
 #define PI 3.141593
 
+#include <inttypes.h>
+#define SEC2NANOSEC 1000000000
+
 // Header files for image read/write
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -723,6 +726,9 @@ int main(int argc, char *argv[]){
         img[i] = (dash_re_flt_type) rgb_imag[i];
     }
 
+    struct timespec current_timespec {};
+    clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+    uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
 	
     // Convertion to grayscale. [HEIGHT][WIDTH][DEPTH] --> [HEIGHT][DEPTH]
     // Doing in main to only deal with 2 dimensional frame from now on.
@@ -826,6 +832,9 @@ int main(int argc, char *argv[]){
     draw_circle(car_point, 3 * line_width, 0, height, width, depth, img);
     draw_circle(lane_point, 2 * line_width, 1, height, width, depth, img);   
 
+    clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+    uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+    //printf("LD Inference: %" PRIu64 "\n", end_time-start_time);
     
     for (int i = 0; i<(height * width * 3); i++){
         rgb_imag[i] = (uint8_t)img[i];

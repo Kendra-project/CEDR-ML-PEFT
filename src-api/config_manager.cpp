@@ -1,4 +1,5 @@
 #include "config_manager.hpp"
+#include <algorithm>
 #include <nlohmann/json.hpp>
 #include <fstream>
 
@@ -6,8 +7,8 @@ ConfigManager::ConfigManager() {
   // Populate the config with all of our "default" configuration options
 #if defined(__aarch64__)
   resource_array[(uint8_t) resource_type::cpu] = 3;
-  resource_array[(uint8_t) resource_type::fft] = 1;
-  resource_array[(uint8_t) resource_type::mmult] = 1;
+  resource_array[(uint8_t) resource_type::fft] = 0;
+  resource_array[(uint8_t) resource_type::mmult] = 0;
   resource_array[(uint8_t) resource_type::gpu] = 0;
 #else
   resource_array[(uint8_t) resource_type::cpu] = 3;
@@ -22,11 +23,20 @@ ConfigManager::ConfigManager() {
   loosen_thread_permissions = true;
   fixed_periodic_injection = true;
   exit_when_idle = false;
+  total_num_of_resources = 0;
   PAPI_Counters = {};
 
-  for (int api = 0; api < api_types::NUM_API_TYPES; api++){
-    for (int platform = 0; platform < (uint8_t) resource_type::NUM_RESOURCE_TYPES; platform++)
-      dash_exec_times[api][platform] = 0;  // TODO: Add a default value?
+#if defined(ROLLING_MEDIAN_EXEC_HISTORY)
+  exec_history_limit = 25;
+#endif
+
+  for (int api = 0; api < api_types::NUM_API_TYPES; api++) {
+    for (int platform = 0; platform < resource_type::NUM_RESOURCE_TYPES; platform++) {
+      exec_times[api][platform] = 0;
+#if defined(ROLLING_MEDIAN_EXEC_HISTORY)
+      exec_history[std::make_pair((api_types) api, (resource_type) platform)] = {};
+#endif
+    }
   }
 
   scheduler = "SIMPLE";
@@ -57,6 +67,7 @@ void ConfigManager::parseConfig(const std::string &filename) {
         unsigned int resource_count = threads_config[resource_type_name];
         LOG_DEBUG << "Config > Worker Threads contains key '" << resource_type_name << "', assigning config value to " << resource_count;
         resource_array[(uint8_t) resource_type_map.at(resource_type_name)] = resource_count;
+        total_num_of_resources += resource_count;
       } else {
         LOG_DEBUG << "Config > Worker Threads does not contain key '" << resource_type_name << "', skipping...";
       }
@@ -109,28 +120,34 @@ void ConfigManager::parseConfig(const std::string &filename) {
     PAPI_Counters = papi_list;
   }
 
+#if defined(STATIC_API_COSTS)
   if (j.find("DASH API Costs") != j.end()) {
     LOG_VERBOSE << "Overwriting default values for DASH API Costs";
     auto dash_api_costs = j["DASH API Costs"];
     for (int api = 0; api < api_types::NUM_API_TYPES; api++){
-      for (int platform = 0; platform < (uint8_t) resource_type::NUM_RESOURCE_TYPES; platform++){
+      for (int platform = 0; platform < resource_type::NUM_RESOURCE_TYPES; platform++){
         const std::string function_name = (std::string(api_type_names[api]) + '_' + std::string(resource_type_names[platform])).c_str();
         if (dash_api_costs.contains(function_name)) {
-          dash_exec_times[api][platform] = dash_api_costs[function_name];
+          uint64_t temp = dash_api_costs[function_name]; 
+          exec_times[api][platform] = temp;
         }
-        LOG_VERBOSE << "Value of dash_exec_times for api " <<
-            (std::string(api_type_names[api]) + '_' + std::string(resource_type_names[platform])).c_str() <<
-            " is " << dash_exec_times[api][platform];
+        LOG_VERBOSE << "Value of dash_exec_times for api " << function_name << " is " << exec_times[api][platform];
       }
     }
   }
-
-  // TODO: Add communication (edge) cost in config file if applicable
+#endif
 
   if (j.find("Max Parallel Jobs") != j.end()) {
     LOG_DEBUG << "Config contains key 'Max Parallel Jobs', assigning config value to " << (unsigned long)j["Max Parallel Jobs"];
     max_parallel_jobs = j["Max Parallel Jobs"];
   }
+
+#if defined(ROLLING_MEDIAN_EXEC_HISTORY)
+  if (j.find("Execution History Limit") != j.end()) {
+    LOG_DEBUG << "Config contains key 'Execution History Limit', assigning config value to " << (size_t)j["Execution History Limit"];
+    exec_history_limit = (size_t) j["Execution History Limit"];
+  }
+#endif
 
   if (j.find("Scheduler") != j.end()) {
     LOG_DEBUG << "Config contains key 'Scheduler', assigning config value to " << (std::string)j["Scheduler"];
@@ -160,11 +177,7 @@ void ConfigManager::parseConfig(const std::string &filename) {
 }
 
 unsigned int ConfigManager::getTotalResources() {
-  unsigned int sum = 0;
-  for (auto num_of_resource : resource_array) {
-    sum += num_of_resource;
-  }
-  return sum;
+  return total_num_of_resources;
 }
 
 unsigned int *ConfigManager::getResourceArray() { return resource_array; }
@@ -175,11 +188,73 @@ bool ConfigManager::getUsePAPI() const { return use_papi; }
 bool ConfigManager::getLoosenThreadPermissions() const { return loosen_thread_permissions; }
 bool ConfigManager::getFixedPeriodicInjection() const { return fixed_periodic_injection; }
 bool ConfigManager::getExitWhenIdle() const { return exit_when_idle; }
-long long ConfigManager::getDashExecTime(const api_types api, const resource_type resource) {return dash_exec_times[api][(uint8_t) resource]; }
-
 std::list<std::string> &ConfigManager::getPAPICounters() { return PAPI_Counters; }
+
+#if !defined(STATIC_API_COSTS)
+void ConfigManager::pushDashExecTime(const api_types api, const resource_type resource, uint64_t time) {
+  #if defined(ROLLING_MEAN_EXEC_HISTORY)
+    auto &ctrs = exec_history[std::make_pair(api, resource)];
+    std::atomic<uint64_t> &cumulative_exec = ctrs.first;
+    std::atomic<uint64_t> &times_run = ctrs.second;
+
+    cumulative_exec += time;
+    times_run       += 1;
+    uint64_t new_mean = cumulative_exec / times_run;
+    LOG_VERBOSE << "Updating mean computation time for api " 
+              << std::string(api_type_names[api]) << " on resource " 
+              << std::string(resource_type_names[resource]) << " to " 
+              << new_mean;
+
+    exec_times[api][resource] = new_mean;
+  #endif
+
+  #if defined(ROLLING_MEDIAN_EXEC_HISTORY)
+    const std::lock_guard<std::mutex> lock(exec_history_mtx[api][resource]);
+
+    std::deque<uint64_t> &times = exec_history[std::make_pair(api, resource)];
+    times.push_front(time);
+    if (times.size() >= exec_history_limit) {
+      times.pop_back();
+    }
+    auto med = times.begin() + times.size()/2;
+    std::nth_element(times.begin(), med, times.end());
+    uint64_t new_median = times[times.size()/2];
+    LOG_VERBOSE << "Updating median computation time for api " 
+                << std::string(api_type_names[api]) << " on resource " 
+                << std::string(resource_type_names[resource]) << " to " 
+                << new_median;
+    exec_times[api][resource] = new_median;
+  #endif
+}
+#endif // !defined(STATIC_API_COSTS)
+
+uint64_t ConfigManager::getDashExecTime(const api_types api, const resource_type resource) {
+  return exec_times[api][resource];
+}
+
+unsigned int ConfigManager::getResourceCount(uint8_t resource) {return resource_count[(resource_type) resource]; }
+void ConfigManager::setResourceCount(uint8_t resource, uint32_t resource_id) {resource_count[(resource_type) resource] = resource_id;}
+
+unsigned int ConfigManager::getResourceToGlobalID(uint8_t resource,  uint32_t resource_id) {return resource_to_global_id[(resource_type) resource][resource_id]; }
+void ConfigManager::setResourceToGlobalID(uint8_t resource,  uint32_t resource_id, uint32_t global_idx) {resource_to_global_id[(resource_type) resource][resource_id] = global_idx;}
+
 
 std::string &ConfigManager::getScheduler() { return scheduler; }
 unsigned long ConfigManager::getMaxParallelJobs() const { return max_parallel_jobs; }
 unsigned long ConfigManager::getRandomSeed() const { return random_seed; }
 std::list<std::string> &ConfigManager::getDashBinaryPaths() { return dash_binary_paths; }
+
+#if defined(ENABLE_IL_ORACLE_LOGGING)
+////////////////////////////////////
+// IL-Sched
+////////////////////////////////////
+void ConfigManager::pushILOracle(struct_ILOracle_task task_info) {
+    task_list.push_back(task_info);
+}
+
+std::list<struct_ILOracle_task> ConfigManager::getILOracleTaskList() {
+    return task_list;
+}
+
+////////////////////////////////////
+#endif

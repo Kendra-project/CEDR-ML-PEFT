@@ -1,6 +1,7 @@
 
 #include "runtime.hpp"
 #include "scheduler.hpp"
+#include "hwschd.h"
 #include <plog/Log.h>
 #include <deque>
 #include <queue>
@@ -115,6 +116,11 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
   sleep_time.tv_nsec = 2000;
   std::list<struct struct_logging> stream_timing_log;
 
+  // Schedule logging
+  struct timespec schedule_starttime {};
+  struct timespec schedule_stoptime {};
+  std::list<struct struct_schedlogging> sched_log;
+
   struct timespec ipc_time_start {
   }, ipc_time_end{};
 
@@ -180,6 +186,15 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
             completed_apps.empty());
   };
   // unsigned long numParallelApps = 0;
+
+  if (cedr_config.getScheduler() == "HEFT_RT_HW") {
+    if (HWSCHD_P >= cedr_config.getTotalResources()) {
+      setup_hwschd();
+    } else {
+      LOG_ERROR << "There are more PEs than PE Handlers available in the hardware scheduler!";
+      exit(1);
+    }
+  }
 
   // Begin execution
   LOG_INFO << "Indefinite run starting";
@@ -272,10 +287,15 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
     } else if (ipc_cmd.cmd_type == SERVER_EXIT || shouldExitEarly()) {
       LOG_INFO << "Command to terminate daemon process received";
       for (int i = 0; i < cedr_config.getTotalResources(); i++) {
-        // terminate other pthreads
-        pthread_mutex_lock(&(resource_mutex[i]));
-        hardware_thread_handle[i].resource_state = 3;
-        pthread_mutex_unlock(&(resource_mutex[i]));
+        while (true) {
+          pthread_mutex_lock(&(resource_mutex[i]));
+          if (hardware_thread_handle[i].resource_state == 0) {
+            hardware_thread_handle[i].resource_state = 3;
+            pthread_mutex_unlock(&(resource_mutex[i]));
+            break;
+          }
+          pthread_mutex_unlock(&(resource_mutex[i]));
+        }
       }
       ipc_cmd.cmd_type = NOPE;
       LOG_INFO << "Exit command initiated. Terminating runtime while-loop";
@@ -389,7 +409,19 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
         }
       }
     }
-    performScheduling(cedr_config, ready_queue, hardware_thread_handle, resource_mutex, free_resource_count);
+
+    if (!ready_queue.empty()){
+      struct struct_schedlogging schedlog_obj {};
+      schedlog_obj.ready_queue_size = ready_queue.size();
+      clock_gettime(CLOCK_MONOTONIC_RAW, &schedule_starttime);
+      performScheduling(cedr_config, ready_queue, hardware_thread_handle, resource_mutex, free_resource_count);
+      clock_gettime(CLOCK_MONOTONIC_RAW, &schedule_stoptime);
+      schedlog_obj.start = schedule_starttime;
+      schedlog_obj.end = schedule_stoptime;
+      schedlog_obj.scheduling_overhead = (schedule_stoptime.tv_sec * SEC2NANOSEC + schedule_stoptime.tv_nsec) -
+                                         (schedule_starttime.tv_sec * SEC2NANOSEC + schedule_starttime.tv_nsec);
+      sched_log.push_back(schedlog_obj);
+    }
 
     std::list<dag_app *>::iterator it;
     it = completed_apps.begin();
@@ -401,6 +433,9 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
 
     // pthread_yield();
   }
+
+  if (cedr_config.getScheduler() == "HEFT_RT_HW")
+    teardown_hwschd();
 
   for (int i = 0; i < cedr_config.getTotalResources(); i++) {
     pthread_join(resource_handle[i], nullptr);
@@ -450,6 +485,38 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
     fclose(trace_fp);
     chmod((log_path + "/timing_trace.log").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
   }
+
+  // Schedule logging capturing
+  {
+    std::list<struct struct_schedlogging>::iterator it;
+    it = sched_log.begin();
+
+    FILE *schedtrace_fp;
+    schedtrace_fp = fopen((log_path + "/schedule_trace.log").c_str(), "w");
+    if (schedtrace_fp == nullptr){
+      LOG_ERROR << "Error outputting schedule trace file!";
+    }
+    else{
+      long long total_sched_overhead = 0;
+      unsigned int total_ready_tasks = 0;
+      while (it != sched_log.end()){
+        struct struct_schedlogging schedlog_element = *it;
+        long long s1 = schedlog_element.start.tv_sec * SEC2NANOSEC + schedlog_element.start.tv_nsec;
+        long long e1 = schedlog_element.end.tv_sec * SEC2NANOSEC + schedlog_element.end.tv_nsec;
+
+        fprintf(schedtrace_fp, "ready_queue_size: %u, ref_start_time: %lld, ref_stop_time: %lld, sheduling_overhead: %lld ns\n",
+                schedlog_element.ready_queue_size, s1, e1, e1-s1);
+        total_sched_overhead += (e1-s1);
+        total_ready_tasks += schedlog_element.ready_queue_size;
+        it = sched_log.erase(it);
+      }
+      fprintf(schedtrace_fp, "total_ready_tasks: %u, total_scheduling_overhead: %lld ns",
+              total_ready_tasks, total_sched_overhead);
+      fclose(schedtrace_fp);
+      chmod((log_path + "/schedule_trace.log").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    }
+  }
+
   free(ipc_cmd.message);
   LOG_INFO << "Run logs are available in : " << log_path;
   LOG_INFO << "The makespan of that log is: " << latestFinish - earliestStart << " ns (" << (latestFinish - earliestStart) / 1000 << " us)";

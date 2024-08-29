@@ -8,15 +8,19 @@ LIBS = -L $(LIBDASH_LIB)
 
 APP_NAME = api_example_nb
 SOURCES = api_example_nb.cpp
-CXXFLAGS = -ggdb
 
-$(APP_NAME)-$(ARCH).so:
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -shared -fPIC $(SOURCES) -o $(APP_NAME)-$(ARCH).so
+ifeq ($(ARCH), aarch64)
+        CXX = aarch64-linux-gnu-g++
+        CC = aarch64-linux-gnu-gcc
+        RUNTIME_LIBDIR = ../../../build-arm/libdash
+else ifeq ($(ARCH), riscv64)
+        CXX = riscv64-linux-gnu-g++
+        CC = riscv64-linux-gnu-gcc
+        RUNTIME_LIBDIR = ../../../build_riscv/libdash
+endif
 
-.PHONY: standalone
-standalone: $(APP_NAME)-$(ARCH).out
-$(APP_NAME)-$(ARCH).out:
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) $(LIBS) $(SOURCES) -l:libdash.a -o $(APP_NAME)-$(ARCH).out
+$(APP_NAME)-$(ARCH).so: $(SOURCES)
+	$(CC) $(CFLAGS) $(INCLUDES) -shared -fPIC $(SOURCES) -o $(APP_NAME)-$(ARCH).so
 
 clean:
 	-rm $(APP_NAME)-*.so

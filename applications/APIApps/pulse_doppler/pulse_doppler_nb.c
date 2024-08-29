@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>                       
 #include "dash.h"
-                                          
 #define PROGPATH "./input/"               
 #define PDPULSE PROGPATH "input_pd_pulse.txt"
 #define PDPS PROGPATH "input_pd_ps.txt"   
@@ -12,7 +11,10 @@
                                           
 #define KERN_ENTER(str)
 #define KERN_EXIT(str) 
-    
+
+#include <inttypes.h>
+#define SEC2NANOSEC 1000000000
+
 /* Function Declarations */               
 void xcorr(double *, double *, size_t, double *);
 void swap(double *, double *);  
@@ -67,17 +69,18 @@ void xcorr(double *x, double *y, size_t n_samp, double *corr) {
     pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
     pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     uint32_t completion_ctr = 0;
-    cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-    pthread_mutex_lock(barrier.mutex);
+    uint32_t completion = 2;
+    cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
 
     // DASH_FFT_flt(fft_inp, fft_out, len, true /* is_forward_transform? */);
     DASH_FFT_flt_nb(&fft_inp_x1, &fft_out_x1, &len, &is_fwd, &barrier);
     DASH_FFT_flt_nb(&fft_inp_x2, &fft_out_x2, &len, &is_fwd, &barrier);
 
-    while (completion_ctr != 2) {
+    pthread_mutex_lock(barrier.mutex);
+    if (completion_ctr != 2) {
       pthread_cond_wait(barrier.cond, barrier.mutex);
-      //printf("%u xcorr FFTs have been completed...\n", completion_ctr);
     }
+    pthread_mutex_unlock(barrier.mutex);
 
     for (size_t i = 0; i < len; i++) {
       X1[2*i] = (double) fft_out_x1[i].re;
@@ -141,15 +144,16 @@ void xcorr(double *x, double *y, size_t n_samp, double *corr) {
     pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
     pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     uint32_t completion_ctr = 0;
-    cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-    pthread_mutex_lock(barrier.mutex);
+    uint32_t completion = 1;
+    cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
 
     DASH_FFT_flt_nb(&fft_inp, &fft_out, &len, &is_fwd, &barrier);
 
-    while (completion_ctr != 1) {
-    pthread_cond_wait(barrier.cond, barrier.mutex);
-    //printf("%u IFFTs have been completed...\n", completion_ctr);
-  }
+    pthread_mutex_lock(barrier.mutex);
+    if (completion_ctr != 1) {
+      pthread_cond_wait(barrier.cond, barrier.mutex);
+    }
+    pthread_mutex_unlock(barrier.mutex);
 
     for (size_t i = 0; i < len; i++) {
       corr[2*i] = (double) fft_out[i].re;
@@ -211,6 +215,10 @@ int main(int argc, char *argv[]) {
   }
   fclose(fp);
 
+  struct timespec current_timespec = {};
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+
   // Run the input samples through the matched filter
   fp = fopen(PDPS, "r"); // read the multiple pulses with noise and delay
   for (k = 0; k < m; k++) {
@@ -268,17 +276,16 @@ int main(int argc, char *argv[]) {
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   uint32_t completion_ctr = 0;
-  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+  uint32_t completion = num_ffts;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
 
   for (size_t i = 0; i < num_ffts; i++) {
-    //printf("calling the %ld-th API\n", i);
     DASH_FFT_flt_nb(&fft_inp[i], &fft_out[i], &m, &is_fwd, &barrier);
   }
 
-  while (completion_ctr != num_ffts) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != num_ffts) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
-    //printf("%u FFTs have been completed for gsl_fft(l,q,m)...\n", completion_ctr);
   }
   pthread_mutex_unlock(barrier.mutex);
 
@@ -322,11 +329,15 @@ int main(int argc, char *argv[]) {
   rg = (b - n_samples) / (n_samples - 1) * PRI;
   dp = (a - (m + 1) / 2) / (m - 1) / PRI;
 
+  clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+  uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+  printf("SAR Inference: %" PRIu64 "\n", end_time-start_time);
+
   fp = fopen("./output/pulse_doppler_output.txt", "w");
   if (fp != NULL) {
     fprintf(fp, "Doppler shift = %lf, time delay = %lf\n", dp, rg);
     fclose(fp);
   }
 
-  //printf("[Pulse Doppler] Execution is complete...\n");
+  // printf("[Pulse Doppler] Execution is complete...\n");
 }

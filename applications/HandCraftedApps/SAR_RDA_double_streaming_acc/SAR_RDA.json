@@ -1,6 +1,6 @@
 { 
     "AppName": "SAR_RDA",
-    "SharedObject": "SAR_RDA-aarch64.so",
+    "SharedObject": "SAR_RDA-riscv64.so",
     "Stream_enable": "double buffer",
     "Max_stream_frame_count": 20,
     "Variables": {

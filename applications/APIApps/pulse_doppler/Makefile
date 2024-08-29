@@ -9,23 +9,38 @@ LIBS = -L $(LIBDASH_LIB)
 APP_NAME = pulse_doppler
 SOURCES = pulse_doppler.c
 SOURCES_NB = pulse_doppler_nb.c
-SOURCES_NB_STATIC_INPUT = pulse_doppler_nb_static_input.c
+SOURCES_PHASED_NB = pulse_doppler_phased_nb.c
+SOURCES_NB_ZIP = pulse_doppler_nb_zip.c
 
-$(APP_NAME)-$(ARCH).so: $(SOURCES)
-	$(CC) $(CFLAGS) $(INCLUDES) -shared -fPIC $(SOURCES) -o $(APP_NAME)-$(ARCH).so -O3
+ifeq ($(ARCH), aarch64)
+        CXX = aarch64-linux-gnu-g++
+        CC = aarch64-linux-gnu-gcc
+        RUNTIME_LIBDIR = ../../../build-arm/libdash
+else ifeq ($(ARCH), riscv64)
+        CXX = riscv64-linux-gnu-g++
+		CC = riscv64-linux-gnu-gcc
+        RUNTIME_LIBDIR = ../../../build_riscv/libdash
+endif
 
-static: $(SOURCES_NB_STATIC_INPUT)
-	$(CC) $(CFLAGS) $(INCLUDES) -shared -fPIC $(SOURCES_NB_STATIC_INPUT) -o $(APP_NAME)-nb-static-$(ARCH).so
-	$(CC) $(CFLAGS) $(INCLUDES) $(LIBS) $(SOURCES_NB_STATIC_INPUT) -l:libdash.a -lm -o $(APP_NAME)-static-$(ARCH).out
+default: blocking nonblocking
 
-nonblocking: $(APP_NAME)-NB-$(ARCH).so
-$(APP_NAME)-NB-$(ARCH).so:$(SOURCES_NB)
+zip: $(SOURCES_NB_ZIP)
+	$(CC) $(CFLAGS) $(INCLUDES) -shared -fPIC $(SOURCES_NB_ZIP) -o $(APP_NAME)-nb-zip-$(ARCH).so
+	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) $(LIBS) $(SOURCES_NB_ZIP) -l:libdash.a -lm -o $(APP_NAME)-nb-zip-$(ARCH).out
+
+blocking: $(SOURCES)
+	$(CC) $(CFLAGS) $(INCLUDES) -shared -fPIC $(SOURCES) -o $(APP_NAME)-$(ARCH).so
+
+nonblocking: $(SOURCES_NB)
 	$(CC) $(CFLAGS) $(INCLUDES) -shared -fPIC $(SOURCES_NB) -o $(APP_NAME)-nb-$(ARCH).so
+
+phased: $(SOURCES_PHASED_NB)
+	$(CC) $(CFLAGS) $(INCLUDES) -shared -fPIC $(SOURCES_PHASED_NB) -o $(APP_NAME)-phased-nb-$(ARCH).so
 
 .PHONY: standalone
 standalone: $(APP_NAME)-$(ARCH).out
 $(APP_NAME)-$(ARCH).out: $(SOURCES)
-	$(CC) $(CFLAGS) $(INCLUDES) $(LIBS) $(SOURCES) -l:libdash.a -lm -o $(APP_NAME)-$(ARCH).out
+	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) $(LIBS) $(SOURCES) -l:libdash.a -lm -o $(APP_NAME)-$(ARCH).out
 
 clean:
 	-rm $(APP_NAME)-*.so

@@ -1,9 +1,22 @@
+LIBDASH_INC ?= ../../../libdash
 
 CC=clang++-9
 COMPILERRT=../../lib/libclang_rt.builtins-aarch64.a
 
-x86:
-	$(CC) -shared -fPIC -ggdb -I./include -I../../TraceAtlasApps/include -o SAR_RDA.so SAR_RDA.cpp -lgsl -lgslcblas -lm
+riscv64:
+	mkdir -p ../target/riscv64
+	g++ \
+		-I $(LIBDASH_INC) \
+		-shared \
+		-fPIC \
+		-DARM \
+		SAR_RDA.cpp \
+		-lfftw3f \
+		-o "../target/riscv64/SAR_RDA_riscv64.so" 
+	cp SAR_RDA.json ../target/riscv64/SAR_RDA-riscv64.json	
+
+#x86:
+#	$(CC) -shared -fPIC -ggdb -I./include -I../../TraceAtlasApps/include -o SAR_RDA.so SAR_RDA.cpp -lgsl -lgslcblas -lm
 
 arm:
 	$(CC) \

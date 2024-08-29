@@ -3,7 +3,8 @@
         "cpu": 3,
         "fft": 0,
         "gemm": 0,
-	"gpu": 0
+        "gpu": 0,
+        "conv_2d": 0
     },
 
     "Features": {

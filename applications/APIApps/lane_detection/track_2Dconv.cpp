@@ -103,7 +103,7 @@ void gaussian_blur(int16_t *img, int kernel_size, int height, int width, int16_t
         }
     }
     //Use a 2-D convolution operation
-    DASH_CONV_2D(img, height, width, gaussian_kernel, kernel_size, return_array);
+    DASH_CONV_2D_int(img, height, width, gaussian_kernel, kernel_size, return_array);
 }
 
 // Sobel filter operation
@@ -115,7 +115,7 @@ void gaussian_blur(int16_t *img, int kernel_size, int height, int width, int16_t
 // width --> image width
 // Output: return_array --> filtered_img
 void sobel_g_operator(int16_t *img, float *filter, int kernel_size, int height, int width, int16_t *return_array){
-    DASH_CONV_2D(img, height, width, filter, kernel_size, return_array);
+    DASH_CONV_2D_int(img, height, width, filter, kernel_size, return_array);
 }
 
 // Sobel filter operation

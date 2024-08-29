@@ -14,9 +14,9 @@ if __name__=="__main__":
     warnings.warn("UPDATE DASH API COSTS!", RuntimeWarning, stacklevel=2, source=None)
     print("Starting creating daemon_config_files")
 
-    SCHEDS = ["SIMPLE", "EFT", "ETF", "MET"] #, "HEFT_RT"]
-    CPUS = 3
-    FFTS = 8
+    SCHEDS = ["EFT", "ETF", "MET"] #, "HEFT_RT"]
+    CPUS = 2
+    FFTS = 3
     MMULTS = 0
     ZIPS = 0
     GPUS = 0
@@ -30,7 +30,7 @@ if __name__=="__main__":
                     for fft in range (FFTS+1):
                         for cpu in range(CPUS):
                             if GPUS == 0:
-                                filename = "daemon_config-"+"c"+str(cpu+1)+"_f"+str(fft)+"_m"+str(mmult)+"_z"+str(zipp)+"-"+str(sched)+".json"
+                                filename = "daemon_configs/daemon_config-"+"c"+str(cpu+1)+"_f"+str(fft)+"-"+str(sched)+".json"
                             else:
                                 filename = "daemon_config-"+"c"+str(cpu+1)+"_f"+str(fft)+"_m"+str(mmult)+"_z"+str(zipp)+"_g"+str(gpu)+"-"+str(sched)+".json"
                             with open(filename, 'w') as f:
@@ -64,8 +64,8 @@ if __name__=="__main__":
                                         '\t],\n'
 
                                         '\t"DASH API Costs": {\n'
-                                                '\t\t"DASH_FFT_cpu": 132955,\n'
-                                                '\t\t"DASH_FFT_fft": 119456,\n'
+                                                '\t\t"DASH_FFT_cpu": 11000000,\n'
+                                                '\t\t"DASH_FFT_fft": 10000000,\n'
                                                 '\t\t"DASH_FFT_gpu": 182368,\n'
                                                 '\t\t"DASH_GEMM_cpu": 400,\n'
                                                 '\t\t"DASH_GEMM_mmult": 500,\n'

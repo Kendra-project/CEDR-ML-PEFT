@@ -3,9 +3,10 @@
 #include <unistd.h>
 #include <stdint.h>
 
-#include "dash_types.h"
+#include "dash.h"
 #include "platform.h"
 
+// If you're adding a new zip op type, please also update dap/personalities/dap_zip.h
 /*
 typedef enum zip_op {
   ZIP_ADD = 0,
@@ -63,9 +64,11 @@ extern "C" __global__ void vector_div(const dash_cmplx_flt_type* x, const dash_c
 
 
 extern "C" void DASH_ZIP_flt_gpu(dash_cmplx_flt_type** x, dash_cmplx_flt_type** y, dash_cmplx_flt_type** z, int* h_len, zip_op_t* op, uint8_t resource_idx) {
+#if DASH_PLATFORM == DASH_HPC
     int dev_count;
     cudaGetDeviceCount(&dev_count);
     cudaSetDevice(resource_idx%dev_count);
+#endif
 //    printf("GPU id is %d\n", (resource_idx%dev_count));
 //    printf("---------------------------------------\n");
 //    printf("------------- Zip on GPU --------------\n");

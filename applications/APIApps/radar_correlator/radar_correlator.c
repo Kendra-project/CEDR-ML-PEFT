@@ -5,6 +5,8 @@
 #include <stdbool.h>
 
 #include "dash.h"
+#include <inttypes.h>
+#define SEC2NANOSEC 1000000000
 
 int main(void)
 {
@@ -48,7 +50,9 @@ int main(void)
     fp = fopen("./input/time_input.txt","r");
     if (fp == NULL) { printf("Unable to open time_input.txt!\n"); return 1; }
     for(i = 0; i < n_samples; i++) {
-        fscanf(fp, "%lf", &time[i]);
+        if(fscanf(fp, "%lf", &time[i])<=0){
+          time[i] = 0.0;
+        }
     }
     fclose(fp);
     fp = NULL;
@@ -61,7 +65,9 @@ int main(void)
     fp = fopen("./input/received_input.txt","r");
     if (fp == NULL) { printf("Unable to open received_input.txt!\n"); return 1; }
     for(i = 0; i < len; i++) {
-        fscanf(fp,"%lf", &received[i]);
+        if(fscanf(fp, "%lf", &received[i])<=0){
+          received[i] = 0.0;
+        }
     }
     fclose(fp);
     fp = NULL;
@@ -104,7 +110,15 @@ int main(void)
         fft_inp[i].im = (dash_re_flt_type) c[2*i+1];
       }
 
+      struct timespec current_timespec = {};
+      clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+      uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+
       DASH_FFT_flt(fft_inp, fft_out, len, true);
+
+      clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+      uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+      printf("First FFT block exec time is: %" PRIu64 "\n", end_time-start_time);
 
       for (size_t i = 0; i < len; i++) {
         X1[2*i] = (double) fft_out[i].re;
@@ -124,7 +138,15 @@ int main(void)
         fft_inp[i].im = (dash_re_flt_type) d[2*i+1];
       }
 
+      struct timespec current_timespec = {};
+      clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+      uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+
       DASH_FFT_flt(fft_inp, fft_out, len, true);
+
+      clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+      uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+      printf("Second FFT block exec time is: %" PRIu64 "\n", end_time-start_time);
 
       for (size_t i = 0; i < len; i++) {
         X2[2*i] = (double) fft_out[i].re;
@@ -150,7 +172,15 @@ int main(void)
         fft_inp[i].im = (dash_re_flt_type) corr_freq[2*i+1];
       }
 
-      DASH_FFT_flt(fft_inp, fft_out, len, false);
+      struct timespec current_timespec = {};
+      clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+      uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+
+      DASH_FFT_flt(fft_inp, fft_out, len, true);
+
+      clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+      uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+      printf("Third FFT block exec time is: %" PRIu64 "\n", end_time-start_time);
 
       for (size_t i = 0; i < len; i++) {
         corr[2*i] = (double) fft_out[i].re;

@@ -1,9 +1,11 @@
 #include "scheduler.hpp"
 #include "IL.hpp"
+#include "hwschd.h"
 #include <algorithm>
 #include <climits>
 #include <map>
 #include <random>
+#include <unistd.h>
 
 std::map<std::string, int> schedule_cache;
 NN_DATA_ML_SCHED nn_data;
@@ -276,6 +278,121 @@ int scheduleHEFT_RT(ConfigManager &cedr_config, std::deque<task_nodes *> &ready_
   return tasks_scheduled;
 }
 
+int scheduleHEFT_RT_HW(ConfigManager &cedr_config, std::deque<task_nodes *> &ready_queue, worker_thread *hardware_thread_handle,
+                       pthread_mutex_t *resource_mutex, uint32_t &free_resource_count) {
+  int i, p;
+  resource_type resourceType;
+  int tasks_scheduled = 0;
+  bool task_allocated;
+  unsigned long long sum_execution = 0;
+  unsigned long long max_execution = 0;
+  unsigned int num_resources;
+  const unsigned int num_tasks = ready_queue.size();
+  task_nodes *this_task;
+  task_enq_t *enq_task;
+  task_enq_t *hw_ready_queue = (task_enq_t *)malloc(num_tasks * sizeof(task_enq_t));
+  task_deq_t *hw_schedule = (task_deq_t *)malloc(num_tasks * sizeof(task_deq_t));
+  unsigned long long min_avail_time;
+  unsigned long long avail_times[HWSCHD_P];
+  unsigned int hw_avail_times[HWSCHD_P];
+
+  LOG_DEBUG << "Received a ready queue of size " << num_tasks;
+
+  // Prepare queue for hardware scheduler
+  for (i = 0; i < num_tasks; i++) {
+    sum_execution = 0;
+    this_task = ready_queue[i];
+    enq_task = &hw_ready_queue[i];
+    enq_task->tid = i;
+
+    // Load execution time and determine average
+    num_resources = 0;
+    for (p = 0; p < cedr_config.getTotalResources(); p++) {
+      // FIXME: There might be a more efficient way to check if resource is supported
+      resourceType = hardware_thread_handle[p].thread_resource_type;
+      if (this_task->supported_resources.find(resourceType) != this_task->supported_resources.end()) {
+        enq_task->runtimes[p] = (this_task->estimated_execution[(uint8_t) resourceType]) & 0x7FFFFFFF;
+        sum_execution += this_task->estimated_execution[(uint8_t) resourceType];
+        num_resources++;
+      } else {
+        enq_task->runtimes[p] = HWSCHD_PE_NOT_SUPPORTED;
+      }
+    }
+
+    // HW was configured for more PEs than needed
+    for (p = cedr_config.getTotalResources(); p < HWSCHD_P; p++) {
+      enq_task->runtimes[p] = HWSCHD_PE_NOT_SUPPORTED;
+    }
+    enq_task->tinfo = (unsigned int)((unsigned long long)(sum_execution / num_resources));
+  }
+
+  // Gather availability times
+  min_avail_time = (unsigned int)((int)-1);
+  for (p = 0; p < cedr_config.getTotalResources(); p++) {
+    avail_times[p] = (unsigned int)((unsigned long long)(hardware_thread_handle[p].thread_avail_time));
+
+    // Find minimum availability time
+    if ((hardware_thread_handle[p].thread_avail_time) < min_avail_time)
+      min_avail_time = hardware_thread_handle[p].thread_avail_time;
+  }
+
+  // Subtract minimum availability time to mitigate overflow
+  for (p = 0; p < cedr_config.getTotalResources(); p++) {
+    avail_times[p] -= min_avail_time;
+    hw_avail_times[p] = avail_times[p];
+  }
+  for (p = cedr_config.getTotalResources(); p < HWSCHD_P; p++) {
+    hw_avail_times[p] = 0;
+  }
+
+  // TODO: Doesn't repeatedly update availability time.
+  // Send tasks to hardware scheduler
+  if (num_tasks > HWSCHD_D) {
+    int remain_tasks;
+    unsigned int offset = 0;
+    LOG_DEBUG << "Ready queue size is too large!";
+    for (remain_tasks = num_tasks; remain_tasks > HWSCHD_D; remain_tasks -= HWSCHD_D) {
+      hwschd_kern(&hw_avail_times[0], &hw_ready_queue[offset], &hw_schedule[offset], HWSCHD_D);
+      offset += HWSCHD_D;
+    }
+    hwschd_kern(&hw_avail_times[0], &hw_ready_queue[offset], &hw_schedule[offset], remain_tasks);
+  } else {
+    hwschd_kern(&hw_avail_times[0], hw_ready_queue, hw_schedule, num_tasks);
+  }
+
+  // Assign tasks to PE chosen by HW scheduler
+  LOG_DEBUG << "About to assign tasks to PEs";
+  for (i = 0; i < num_tasks; i++) {
+    LOG_DEBUG << "The TID is " << hw_schedule[i].tid;
+    this_task = ready_queue[hw_schedule[i].tid];
+    LOG_DEBUG << "Got the task using TID " << hw_schedule[i].tid;
+    p = hw_schedule[i].decision;
+    LOG_DEBUG << "Got the decision " << p;
+    task_allocated = attemptToAssignTaskToPE(cedr_config, this_task, &hardware_thread_handle[p], &resource_mutex[p], p);
+    LOG_DEBUG << "Assigned the task";
+
+      if (task_allocated) {
+        LOG_VERBOSE << "Scheduled task to PE " << p;
+        tasks_scheduled++;
+      } else {
+        // Shouldn't get here
+        LOG_WARNING << "Failed in attempt to map task to PE " << p;
+        // TODO: Change PE decision instead of attempting the same PE
+        // repeatedly.
+        --i;
+      }
+  }
+
+  if (tasks_scheduled != ready_queue.size()) {
+    LOG_WARNING << "Did not schedule all tasks in ready queue.";
+  }
+
+  ready_queue.clear();
+  free(hw_ready_queue);
+  free(hw_schedule);
+  return tasks_scheduled;
+}
+
 int scheduleDNN(ConfigManager &cedr_config, std::deque<task_nodes *> &ready_queue, worker_thread *hardware_thread_handle, pthread_mutex_t *resource_mutex,
                 uint32_t &free_resource_count) {
 
@@ -457,6 +574,8 @@ void performScheduling(ConfigManager &cedr_config, std::deque<task_nodes *> &rea
     tasks_scheduled += scheduleMET(cedr_config, ready_queue, hardware_thread_handle, resource_mutex, free_resource_count);
   } else if (sched_policy == "HEFT_RT") {
     tasks_scheduled += scheduleHEFT_RT(cedr_config, ready_queue, hardware_thread_handle, resource_mutex, free_resource_count);
+  } else if (sched_policy == "HEFT_RT_HW") {
+    tasks_scheduled += scheduleHEFT_RT_HW(cedr_config, ready_queue, hardware_thread_handle, resource_mutex, free_resource_count);
   } else if (sched_policy == "DNN") {
     tasks_scheduled += scheduleDNN(cedr_config, ready_queue, hardware_thread_handle, resource_mutex, free_resource_count);
   } else if (sched_policy == "RT") {

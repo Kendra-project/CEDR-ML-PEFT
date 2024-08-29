@@ -71,7 +71,7 @@
 config.json
 
 # Project output files
-**/build/*
+**/build*/*
 **/install-dir/*
 trace_time.txt
 e2e_exe_time.txt

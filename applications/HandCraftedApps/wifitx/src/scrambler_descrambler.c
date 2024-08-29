@@ -5,6 +5,10 @@
 #include "scrambler_descrambler.h"
 #define SEC2NANOSEC 1000000000
 
+#ifdef EXPERIMENT
+#define printf(...)
+#endif
+
 static char state=0x0005;
 extern unsigned int *base_addr;
 /*******************************************************************

@@ -15,6 +15,10 @@
 
 #include "common.h"
 
+#ifdef EXPERIMENT
+#define printf(...)
+#endif
+
 #define SEC2NANOSEC  1000000000
 extern int           dma1_control_fd;
 extern unsigned int *dma1_control_base_addr;

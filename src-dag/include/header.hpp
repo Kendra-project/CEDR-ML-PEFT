@@ -259,3 +259,9 @@ struct struct_logging {
   struct timespec start, end;
   unsigned long long prev_idle_time;
 };
+
+struct struct_schedlogging {
+  unsigned int ready_queue_size;
+  struct timespec start, end;
+  unsigned long long scheduling_overhead;
+};

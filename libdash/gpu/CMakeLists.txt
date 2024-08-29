@@ -19,7 +19,7 @@ set(LIBDASH_GPU_SRCS
 )
 set(LIBDASH_GPU_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR} ${COMMON_DMA_DIRECTORY} ${DASH_TYPES_HEADER_DIR})
 
-# Append sources and include directories for the GPU files themselves
+# Append sources and include directories for the DAP files themselves
 set(LIBDASH_SRCS ${LIBDASH_SRCS} ${LIBDASH_GPU_SRCS})
 set(LIBDASH_INCLUDES ${LIBDASH_INCLUDES} ${LIBDASH_GPU_INCLUDES})
 # Trim off any duplicates (since other modules may have, i.e., added DMA as well)

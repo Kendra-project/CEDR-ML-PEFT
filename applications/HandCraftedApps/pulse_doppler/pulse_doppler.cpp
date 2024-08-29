@@ -8,31 +8,36 @@
 #include <nlohmann/json.hpp>
 #endif
 #include "pulse_doppler.hpp"
+#include "dash.h"
 
 #define PD_DEBUG 0
 #define M 128
 #define N 64
 #define INPUT_DIR "./"
 
+#ifdef EXPERIMENT
+#define printf(...)
+#endif
+
 size_t m ;                               // number of pulses
 size_t n_samples ;
-double PRI;
-double *mf;
-double *p;
-double *pulse;
-double *corr;
+float PRI;
+float *mf;
+float *p;
+float *pulse;
+float *corr;
 
 fftwf_complex *in_xcorr1, *out_xcorr1, *in_xcorr2, *out_xcorr2, *in_xcorr3, *out_xcorr3;
 fftwf_plan *p1, *p2, *p3;
-double *q;
-double *r;
-double *f;
-double *max, *a, *b;
+float *q;
+float *r;
+float *f;
+float *max, *a, *b;
 fftwf_complex *in_fft, *out_fft;
 fftwf_plan *p4;
 
-double *X1, *X2;
-double *corr_freq;
+float *X1, *X2;
+float *corr_freq;
 
 // Pointer to use to hold the shared object file handle
 void *dlhandle;
@@ -41,8 +46,8 @@ void *dlhandle;
 // arg2: output
 // arg3: fft size
 // arg4: is forward transform/FFT? if not, it's IFFT
-void (*fft_accel_func)(double**, double**, size_t*, bool*, unsigned int);
-void (*ifft_accel_func)(double**, double**, size_t*, bool*, unsigned int);
+void (*fft_accel_func)(dash_cmplx_flt_type**, dash_cmplx_flt_type**, size_t*, bool*, uint8_t);
+void (*ifft_accel_func)(dash_cmplx_flt_type**, dash_cmplx_flt_type**, size_t*, bool*, uint8_t);
 
 __attribute__((__visibility__("default"))) thread_local unsigned int __CEDR_TASK_ID__ = 0;
 __attribute__((__visibility__("default"))) thread_local unsigned int __CEDR_CLUSTER_IDX__ = 0;
@@ -54,13 +59,13 @@ void __attribute__((constructor)) setup(void) {
   m = M;
   n_samples = N;
   PRI = 6.3e-5;
-  mf = (double*) malloc((2*N)*M*2*sizeof(double));
-  pulse = (double*) malloc(2*N *sizeof(double));
-  p = (double*) malloc(2*N*M *sizeof(double));
-  X1 = (double*) malloc(2*(2*(n_samples))*M *sizeof(double));
-  X2 = (double*) malloc(2*(2*(n_samples))*M *sizeof(double));
-  corr_freq = (double*) malloc(2*(2*(n_samples))*M *sizeof(double));
-  corr = (double*) malloc(2*(2*N)*M *sizeof(double));
+  mf = (float*) malloc((2*N)*M*2*sizeof(float));
+  pulse = (float*) malloc(2*N *sizeof(float));
+  p = (float*) malloc(2*N*M *sizeof(float));
+  X1 = (float*) malloc(2*(2*(n_samples))*M *sizeof(float));
+  X2 = (float*) malloc(2*(2*(n_samples))*M *sizeof(float));
+  corr_freq = (float*) malloc(2*(2*(n_samples))*M *sizeof(float));
+  corr = (float*) malloc(2*(2*N)*M *sizeof(float));
   in_xcorr1 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * 2*(n_samples)* (m));
   out_xcorr1 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * (2*(n_samples))* (m));
   in_xcorr2 = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * (2*(n_samples))* (m));
@@ -80,16 +85,16 @@ void __attribute__((constructor)) setup(void) {
     p3[i] = fftwf_plan_dft_1d((2*(n_samples)), &(in_xcorr3[i * (2*(n_samples))]), &(out_xcorr3[i * (2*(n_samples))]), FFTW_BACKWARD, FFTW_ESTIMATE);
   }
 
-  q = (double*) malloc(2*m*sizeof(double) * 2*(n_samples));
-  r = (double*) malloc(m*sizeof(double) * 2*(n_samples));
-  //*l = malloc(2*m*sizeof(double));
-  f = (double*) malloc(m*(2*n_samples)*sizeof(double));
-  max = (double*) malloc((2*n_samples)*sizeof(double));
+  q = (float*) malloc(2*m*sizeof(float) * 2*(n_samples));
+  r = (float*) malloc(m*sizeof(float) * 2*(n_samples));
+  //*l = malloc(2*m*sizeof(float));
+  f = (float*) malloc(m*(2*n_samples)*sizeof(float));
+  max = (float*) malloc((2*n_samples)*sizeof(float));
   for (int i=0 ; i < 2*n_samples; i= i+ 1){
     max[i] = 0;
   }
-  a = (double*) malloc((2*n_samples)*sizeof(double));
-  b = (double*) malloc((2*n_samples)*sizeof(double));
+  a = (float*) malloc((2*n_samples)*sizeof(float));
+  b = (float*) malloc((2*n_samples)*sizeof(float));
   //max = 0;
   in_fft = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * m * (2*(n_samples)));
   out_fft = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * m * (2*(n_samples)));
@@ -106,8 +111,10 @@ void __attribute__((constructor)) setup(void) {
   if (fp == nullptr) {
     printf("Error opening input_pd_pulse");
   }
+  double temp_read;
   for(int i=0; i<2*N; i++){
-    fscanf(fp, "%lf", &(pulse[i]));
+    fscanf(fp, "%lf", &(temp_read));
+    pulse[i]=temp_read;
   }
   fclose(fp);
 
@@ -115,7 +122,9 @@ void __attribute__((constructor)) setup(void) {
   std::string pd_ps = std::string("./input/input_pd_ps.txt");
   fp = fopen(pd_ps.c_str(), "r");
   for(int j = 0; j < 2 * N*M; j++){
-    fscanf(fp, "%lf", &(p[j]));
+    fscanf(fp, "%lf", &(temp_read));
+    p[j]=temp_read;
+    //fscanf(fp, "%lf", &(p[j]));
   }
   fclose(fp);
 
@@ -127,11 +136,11 @@ void __attribute__((constructor)) setup(void) {
   if (dlhandle == nullptr) {
     printf("Unable to open libdash-rt shared object!\n");
   }
-  fft_accel_func = (void(*)(double**, double**, size_t*, bool*, unsigned int)) dlsym(dlhandle, "DASH_FFT_fft");
+  fft_accel_func = (void(*)(dash_cmplx_flt_type**, dash_cmplx_flt_type**, size_t*, bool*, uint8_t)) dlsym(dlhandle, "DASH_FFT_flt_fft");
   if (fft_accel_func == nullptr) {
     printf("Unable to get function handle for FFT accelerator function!\n");
   }
-  ifft_accel_func = (void(*)(double**, double**, size_t*, bool*, unsigned int)) dlsym(dlhandle, "DASH_FFT_fft");
+  ifft_accel_func = (void(*)(dash_cmplx_flt_type**, dash_cmplx_flt_type**, size_t*, bool*, uint8_t)) dlsym(dlhandle, "DASH_FFT_flt_fft");
   if (ifft_accel_func == nullptr) {
     printf("Unable to get function handle for IFFT accelerator function!\n");
   }
@@ -143,11 +152,11 @@ void __attribute__((constructor)) setup(void) {
   if (dlhandle == nullptr) {
     printf("Unable to open libdash-rt shared object!\n");
   }
-  fft_accel_func = (void(*)(double**, double**, size_t*, bool*, unsigned int)) dlsym(dlhandle, "DASH_FFT_gpu");
+  fft_accel_func = (void(*)(float**, float**, size_t*, bool*, unsigned int)) dlsym(dlhandle, "DASH_FFT_gpu");
   if (fft_accel_func == nullptr) {
     printf("Unable to get function handle for FFT accelerator function!\n");
   }
-  ifft_accel_func = (void(*)(double**, double**, size_t*, bool*, unsigned int)) dlsym(dlhandle, "DASH_FFT_gpu");
+  ifft_accel_func = (void(*)(float**, float**, size_t*, bool*, unsigned int)) dlsym(dlhandle, "DASH_FFT_gpu");
   if (ifft_accel_func == nullptr) {
     printf("Unable to get function handle for IFFT accelerator function!\n");
   }
@@ -197,7 +206,7 @@ void __attribute__((destructor)) teardown(void) {
 }
 #endif
 
-extern "C" void fftwf_fft(double *input_array, fftwf_complex *in, fftwf_complex *out, double *output_array, size_t n_elements, fftwf_plan p) {
+extern "C" void fftwf_fft(float *input_array, fftwf_complex *in, fftwf_complex *out, float *output_array, size_t n_elements, fftwf_plan p) {
     for(size_t i = 0; i < 2*n_elements; i+=2)
     {
         in[i/2][0] = input_array[i];
@@ -206,8 +215,8 @@ extern "C" void fftwf_fft(double *input_array, fftwf_complex *in, fftwf_complex 
     fftwf_execute(p);
     for(size_t i = 0; i < 2*n_elements; i+=2)
     {
-        output_array[i] = (double) out[i/2][0];
-        output_array[i+1] = (double) out[i/2][1];
+        output_array[i] = (float) out[i/2][0];
+        output_array[i+1] = (float) out[i/2][1];
     }
 }
 
@@ -220,17 +229,17 @@ extern "C" void pulse_doppler_FFT_0_cpu(void) {
     len = 2 * (n_samples);
     printf("Starting CPU execution of FFT_0, task id: %d\n", __CEDR_TASK_ID__);
 
-    double *p_loc;
-    double *X1_loc;
+    float *p_loc;
+    float *X1_loc;
     p_loc = &((p[ 2*n_samples * ((__CEDR_TASK_ID__)/2)]));
     X1_loc = &((X1[2*(2*(n_samples)) * ((__CEDR_TASK_ID__)/2)]));
 
-    double *c = (double*) malloc( 2*len *sizeof(double));
+    float *c = (float*) malloc( 2*len *sizeof(float));
     for(size_t i = 0; i<2*(n_samples-1); i+=2){
         c[i] = 0;
         c[i+1] = 0;
     }
-    memcpy(c+2*(n_samples - 1), p_loc, 2*(n_samples)*sizeof(double));
+    memcpy(c+2*(n_samples - 1), p_loc, 2*(n_samples)*sizeof(float));
     c[2*len-2] = 0;
     c[2*len - 1] = 0;
     fftwf_fft(c, &(in_xcorr1[(__CEDR_TASK_ID__/2)*2*(n_samples)]), &(out_xcorr1[(__CEDR_TASK_ID__/2)*2*(n_samples)]),  X1_loc, len, p1[__CEDR_TASK_ID__/2]);
@@ -252,21 +261,21 @@ extern "C" void pulse_doppler_FFT_0_accel(void) {
     isFwd = true;
     printf("Starting accelerator execution of FFT_0, task id: %u, cluster idx: %u\n", __CEDR_TASK_ID__, __CEDR_CLUSTER_IDX__);
 
-    double *p_loc;
-    double *X1_loc;
+    float *p_loc;
+    float *X1_loc;
     p_loc = &((p[ 2*n_samples * ((__CEDR_TASK_ID__)/2)]));
     X1_loc = &((X1[2*(2*(n_samples)) * ((__CEDR_TASK_ID__)/2)]));
 
-    double *c = (double*) malloc( 2*len *sizeof(double));
+    float *c = (float*) malloc( 2*len *sizeof(float));
     for(size_t i = 0; i<2*(n_samples-1); i+=2) {
         c[i] = 0;
         c[i+1] = 0;
     }
-    memcpy(c+2*(n_samples - 1), p_loc, 2*(n_samples)*sizeof(double));
+    memcpy(c+2*(n_samples - 1), p_loc, 2*(n_samples)*sizeof(float));
     c[2*len-2] = 0;
     c[2*len - 1] = 0;
     // fftwf_fft(c, &(in_xcorr1[(__CEDR_TASK_ID__/2)*2*(n_samples)]), &(out_xcorr1[(__CEDR_TASK_ID__/2)*2*(n_samples)]),  X1_loc, len, p1[__CEDR_TASK_ID__/2]);
-    (*fft_accel_func)(&c, &X1_loc, &len, &isFwd, __CEDR_CLUSTER_IDX__);
+    (*fft_accel_func)(((dash_cmplx_flt_type**)&c), ((dash_cmplx_flt_type**)&X1_loc), &len, &isFwd, __CEDR_CLUSTER_IDX__);
     if (PD_DEBUG == 1) {
         for (int i = 0; i <  (2*(n_samples)*2); i=i+2) {
             printf("IT %d X1 index %d real: %lf  imag %lf \n",(__CEDR_TASK_ID__)/2 , i/2, X1[i+(2*(2*(n_samples)) * ((__CEDR_TASK_ID__)/2))],X1[i+1+ (2*(2*(n_samples)) * ((__CEDR_TASK_ID__)/2))]);
@@ -281,19 +290,19 @@ extern "C" void pulse_doppler_FFT_1_cpu(void) {
     printf("Starting CPU execution of FFT_1, task id: %d\n", __CEDR_TASK_ID__);
     size_t len;
     len = 2 * (n_samples);
-    double *d = (double*) malloc( 2*len *sizeof(double));
-    double *z = (double*) malloc( 2*(n_samples) *sizeof(double));
-    double *X2_loc;
+    float *d = (float*) malloc( 2*len *sizeof(float));
+    float *z = (float*) malloc( 2*(n_samples) *sizeof(float));
+    float *X2_loc;
     X2_loc = &(X2[2*(2*(n_samples)) * (((__CEDR_TASK_ID__)/2) - 1)]);
-    double *y;
+    float *y;
     y = pulse;
 
     for(size_t i = 0; i<2*(n_samples); i+=2){
         z[i] = 0;
         z[i+1] = 0;
     }
-    memcpy(d, y, 2*(n_samples)*sizeof(double));
-    memcpy(d+2*(n_samples), z, 2*(n_samples)*sizeof(double));
+    memcpy(d, y, 2*(n_samples)*sizeof(float));
+    memcpy(d+2*(n_samples), z, 2*(n_samples)*sizeof(float));
 
     fftwf_fft(d, &(in_xcorr2[((__CEDR_TASK_ID__/2)-1)*2*(n_samples)]),
               &(out_xcorr2[((__CEDR_TASK_ID__/2)-1)*2*(n_samples)]), X2_loc, len,p2[(__CEDR_TASK_ID__/2)-1]);
@@ -317,22 +326,22 @@ extern "C" void pulse_doppler_FFT_1_accel(void) {
     bool isFwd;
     len = 2 * (n_samples);
     isFwd = true;
-    double *d = (double*) malloc( 2*len *sizeof(double));
-    double *z = (double*) malloc( 2*(n_samples) *sizeof(double));
-    double *X2_loc;
+    float *d = (float*) malloc( 2*len *sizeof(float));
+    float *z = (float*) malloc( 2*(n_samples) *sizeof(float));
+    float *X2_loc;
     X2_loc = &(X2[2*(2*(n_samples)) * (((__CEDR_TASK_ID__)/2) - 1)]);
-    double *y;
+    float *y;
     y = pulse;
 
     for(size_t i = 0; i<2*(n_samples); i+=2){
         z[i] = 0;
         z[i+1] = 0;
     }
-    memcpy(d, y, 2*(n_samples)*sizeof(double));
-    memcpy(d+2*(n_samples), z, 2*(n_samples)*sizeof(double));
+    memcpy(d, y, 2*(n_samples)*sizeof(float));
+    memcpy(d+2*(n_samples), z, 2*(n_samples)*sizeof(float));
     // fftwf_fft(d, &(in_xcorr2[((__CEDR_TASK_ID__/2)-1)*2*(n_samples)]), \
               &(out_xcorr2[((__CEDR_TASK_ID__/2)-1)*2*(n_samples)]), X2_loc, len,p2[(__CEDR_TASK_ID__/2)-1]);
-    (*fft_accel_func)(&d, &X2_loc, &len, &isFwd, __CEDR_CLUSTER_IDX__);
+    (*fft_accel_func)(((dash_cmplx_flt_type**)&d), ((dash_cmplx_flt_type**)&X2_loc), &len, &isFwd, __CEDR_CLUSTER_IDX__);
     
     if (PD_DEBUG == 1){
         for (int i = 0; i <  (2*(n_samples)*2); i=i+2) {
@@ -350,9 +359,9 @@ extern "C" void pulse_doppler_FFT_1_accel(void) {
 extern "C" void pulse_doppler_MUL(void) {
     size_t len;
     len = 2 * (n_samples);
-    double *X1_loc;
-    double *X2_loc;
-    double *corr_freq_loc;
+    float *X1_loc;
+    float *X2_loc;
+    float *corr_freq_loc;
     int index = 2*m + 1;
 
     X1_loc = &((X1[2*(2*(n_samples)) * (__CEDR_TASK_ID__-index)]));
@@ -378,8 +387,8 @@ extern "C" void pulse_doppler_IFFT_cpu(void) {
     size_t len;
     len = 2 * (n_samples);
 
-    double *corr_freq_loc;
-    double *corr_loc;
+    float *corr_freq_loc;
+    float *corr_loc;
     int index = 3*m + 1;
     corr_loc = &((corr[2*(2*(n_samples)) * (__CEDR_TASK_ID__-index)]));
     corr_freq_loc = &((corr_freq[2*(2*(n_samples)) * (__CEDR_TASK_ID__-index)]));
@@ -401,14 +410,14 @@ extern "C" void pulse_doppler_IFFT_accel(void) {
     len = 2 * (n_samples);
     isFwd = false;
 
-    double *corr_freq_loc;
-    double *corr_loc;
+    float *corr_freq_loc;
+    float *corr_loc;
     int index = 3*m + 1;
     corr_loc = &((corr[2*(2*(n_samples)) * (__CEDR_TASK_ID__-index)]));
     corr_freq_loc = &((corr_freq[2*(2*(n_samples)) * (__CEDR_TASK_ID__-index)]));
 
     //fftwf_fft(corr_freq_loc, &(in_xcorr3[(__CEDR_TASK_ID__-index)*2*(n_samples)]), &(out_xcorr3[(__CEDR_TASK_ID__-index)*2*(n_samples)]), corr_loc, len, p3[__CEDR_TASK_ID__-index]);
-    (*ifft_accel_func)(&corr_freq_loc, &corr_loc, &len, &isFwd, __CEDR_CLUSTER_IDX__);
+    (*ifft_accel_func)(((dash_cmplx_flt_type**)&corr_freq_loc), ((dash_cmplx_flt_type**)&corr_loc), &len, &isFwd, __CEDR_CLUSTER_IDX__);
     if (PD_DEBUG == 1){
         for (int i = 0; i <  (2*len); i=i+2) {
             //printf("corr index %d real: %lf  imag %lf \n", i/2, corr[i],corr[i+1]);
@@ -422,8 +431,8 @@ extern "C" void pulse_doppler_IFFT_accel(void) {
 extern "C" void pulse_doppler_REALIGN_MAT(void) {
     size_t len;
     len = 2 * (n_samples);
-    double *mf_loc;
-    double *corr_loc;
+    float *mf_loc;
+    float *corr_loc;
     mf_loc = mf;
     corr_loc = corr;
     for(int k = 0; k < m; k++){
@@ -447,8 +456,8 @@ extern "C" void pulse_doppler_REALIGN_MAT(void) {
 }
 
 extern "C" void pulse_doppler_FFT_2_cpu(void) {
-    double *l = (double*) malloc(2*(m)*sizeof(double));
-    double *q_loc;
+    float *l = (float*) malloc(2*(m)*sizeof(float));
+    float *q_loc;
     int index = 4*m + 2;
     int x = __CEDR_TASK_ID__ - index;
     q_loc = &((q)[ x*2*m]);
@@ -473,8 +482,8 @@ extern "C" void pulse_doppler_FFT_2_cpu(void) {
 extern "C" void pulse_doppler_FFT_2_accel(void) {
     size_t len = 2 * m;
     bool isFwd = true;
-    double *l = (double*) malloc(2*(m)*sizeof(double));
-    double *q_loc;
+    float *l = (float*) malloc(2*(m)*sizeof(float));
+    float *q_loc;
     int index = 4*m + 2;
     int x = __CEDR_TASK_ID__ - index;
     q_loc = &((q)[ x*2*m]);
@@ -482,7 +491,7 @@ extern "C" void pulse_doppler_FFT_2_accel(void) {
         l[o] = mf[x+o*(2*n_samples)];
     }
 
-    (*fft_accel_func)(&l, &q_loc, &len, &isFwd, __CEDR_CLUSTER_IDX__);
+    (*fft_accel_func)(((dash_cmplx_flt_type**)&l), ((dash_cmplx_flt_type**)&q_loc), &len, &isFwd, __CEDR_CLUSTER_IDX__);
 
     if (PD_DEBUG == 1){
         for (int i = 0; i <  (2*(m)); i=i+2) {
@@ -500,8 +509,8 @@ extern "C" void pulse_doppler_AMPLITUDE(void) {
     int index = (2*n_samples)  + (4*m) + 2;
     int x = __CEDR_TASK_ID__ - index;
 
-    double *q_loc;
-    double *r_loc;
+    float *q_loc;
+    float *r_loc;
     q_loc = &((q)[ x*2*m]);
     r_loc = &((r)[ x*m]);
     for(int y = 0; y < 2*m; y+=2) {
@@ -517,16 +526,16 @@ extern "C" void pulse_doppler_AMPLITUDE(void) {
     //printf("Ending pulse doppler app id %d task id %d task name %s Core ID %lu\n",task->app_id, __CEDR_TASK_ID__, task->task_name, self);
 }
 
-extern "C" void swap(double *v1, double *v2) {
-    double tmp = *v1;
+extern "C" void swap(float *v1, float *v2) {
+    float tmp = *v1;
     *v1 = *v2;
     *v2 = tmp;
 }
 
-extern "C" void fftshift(double *data, double count)
+extern "C" void fftshift(float *data, float count)
 {
     int k = 0;
-    int c = (double) floor((double)count/2);
+    int c = (float) floor((float)count/2);
     // For odd and for even numbers of element use different algorithm
     if ((int)count % 2 == 0)
     {
@@ -535,7 +544,7 @@ extern "C" void fftshift(double *data, double count)
     }
     else
     {
-        double tmp = data[0];
+        float tmp = data[0];
         for (k = 0; k < c; k++)
         {
             data[k] = data[c + k + 1];
@@ -549,7 +558,7 @@ extern "C" void pulse_doppler_FFTSHIFT(void) {
     int index = (2*2*n_samples)  + (4*m) + 2;
     int x = __CEDR_TASK_ID__ - index;
 
-    double *r_loc;
+    float *r_loc;
     r_loc = &((r)[x*m]);
 
     fftshift(r_loc, m);
@@ -566,9 +575,9 @@ extern "C" void pulse_doppler_MAX0(void) {
     int index = (3*2*n_samples)  + (4*m) + 2;
     int x = __CEDR_TASK_ID__ - index;
 
-    double *r_loc;
+    float *r_loc;
     r_loc = &((r)[ x*m]);
-    double *max_loc, *a_loc, *b_loc;
+    float *max_loc, *a_loc, *b_loc;
     max_loc = &((max)[x]);
     a_loc = &((a)[x]);
     b_loc = &((b)[x]);
@@ -592,7 +601,7 @@ extern "C" void pulse_doppler_FINAL_MAX(void) {
     int index = (4*2*n_samples)  + (4*m) + 2;
     int x = __CEDR_TASK_ID__ - index;
 
-    double max_temp, a_temp, b_temp;
+    float max_temp, a_temp, b_temp;
     max_temp = 0; a_temp = 0; b_temp =0;
 
     for(int z = 0; z < (2*n_samples); z++){
@@ -604,7 +613,7 @@ extern "C" void pulse_doppler_FINAL_MAX(void) {
     }
 
     if (PD_DEBUG == 0){
-        double rg, dp;
+        float rg, dp;
         rg = (b_temp-n_samples)/(n_samples-1)*PRI;
         dp = (a_temp-(m+1)/2)/(m-1)/PRI;
         for (int j = 0; j<(m);j++){
@@ -929,12 +938,14 @@ void generateJSON(void) {
 
     output["DAG"] = DAG;
 
+#ifndef EXPERIMENT
     std::ofstream output_file("pulse_doppler.json");
     if (!output_file.is_open()) {
         fprintf(stderr, "Failed to open output file for writing JSON\n");
         exit(1);
     }
     output_file << std::setw(2) << output;
+#endif
 }
 
 int main(void) {

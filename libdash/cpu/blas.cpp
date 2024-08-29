@@ -98,12 +98,13 @@ void DASH_BLAS_MADD_flt(dash_cmplx_flt_type* A, dash_cmplx_flt_type* B, dash_cmp
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   uint32_t completion_ctr = 0;
-  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+  uint32_t completion = 1;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
   
   DASH_BLAS_MADD_flt_nb(&A, &B, &C, &A_ROWS, &A_COLS, &barrier);
   
-  while (completion_ctr != 1) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != 1) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
@@ -128,12 +129,13 @@ void DASH_BLAS_MADD_int(dash_cmplx_int_type* A, dash_cmplx_int_type* B, dash_cmp
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   uint32_t completion_ctr = 0;
-  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+  uint32_t completion = 1;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
   
   DASH_BLAS_MADD_int_nb(&A, &B, &C, &A_ROWS, &A_COLS, &barrier);
   
-  while (completion_ctr != 1) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != 1) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
@@ -158,12 +160,13 @@ void DASH_BLAS_MSUB_flt(dash_cmplx_flt_type* A, dash_cmplx_flt_type* B, dash_cmp
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   uint32_t completion_ctr = 0;
-  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
-  
+  uint32_t completion = 1;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
+ 
   DASH_BLAS_MSUB_flt_nb(&A, &B, &C, &A_ROWS, &A_COLS, &barrier);
   
-  while (completion_ctr != 1) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != 1) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
@@ -188,12 +191,13 @@ void DASH_BLAS_MSUB_int(dash_cmplx_int_type* A, dash_cmplx_int_type* B, dash_cmp
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   uint32_t completion_ctr = 0;
-  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+  uint32_t completion = 1;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
   
   DASH_BLAS_MSUB_int_nb(&A, &B, &C, &A_ROWS, &A_COLS, &barrier);
   
-  while (completion_ctr != 1) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != 1) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
@@ -218,12 +222,13 @@ void DASH_BLAS_TRANSPOSE_flt(dash_cmplx_flt_type* in, dash_cmplx_flt_type* out, 
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   uint32_t completion_ctr = 0;
-  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+  uint32_t completion = 1;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
   
   DASH_BLAS_TRANSPOSE_flt_nb(&in, &out, &ROWS, &COLS, &conjugate, &barrier);
   
-  while (completion_ctr != 1) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != 1) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);
@@ -248,12 +253,13 @@ void DASH_BLAS_TRANSPOSE_int(dash_cmplx_int_type* in, dash_cmplx_int_type* out, 
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   uint32_t completion_ctr = 0;
-  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-  pthread_mutex_lock(barrier.mutex);
+  uint32_t completion = 1;
+  cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
   
   DASH_BLAS_TRANSPOSE_int_nb(&in, &out, &ROWS, &COLS, &conjugate, &barrier);
   
-  while (completion_ctr != 1) {
+  pthread_mutex_lock(barrier.mutex);
+  if (completion_ctr != 1) {
     pthread_cond_wait(barrier.cond, barrier.mutex);
   }
   pthread_mutex_unlock(barrier.mutex);

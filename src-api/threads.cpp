@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <linux/sched.h>
 #include <sys/syscall.h>
-#include <stdint.h>
+#include <cstdint>
 #include <thread>
 #include <unistd.h>
 
@@ -67,15 +67,16 @@ void *hardware_thread(void *ptr) {
   auto *thread_arg = (pthread_arg *)ptr;
   // Since we spend a lot of time dereferencing these pointers from thread_arg, might as well do it once
   auto *worker_thread = thread_arg->thread;
-  auto *thread_lock = thread_arg->thread_lock;
+  auto *thread_lock = &(worker_thread->resource_mutex);
+  auto *thread_cond = &(worker_thread->resource_cond);
+  auto *is_sleeping = &(worker_thread->is_sleeping);
   auto *cedr_config = worker_thread->cedr_config;
 
   void *run_args[MAX_ARGS];
   // long long expected_finish_time;
 
-  // PE idle time variables - [PE level QUEUE stats]
-  unsigned long long last_busy = 0, last_avail = 0, total_idle_time = 0;
-
+  unsigned long long last_busy = 0, last_avail = 0;
+  sleep(1);
   int cpu_name = sched_getcpu();
   LOG_DEBUG << "Starting thread " << self << " as resource name " << worker_thread->resource_name << " and type " << resource_type_names[(uint8_t) worker_thread->thread_resource_type]
             << " on cpu id " << cpu_name;
@@ -95,10 +96,15 @@ void *hardware_thread(void *ptr) {
   }
 #endif
 
+  pthread_mutex_lock(thread_lock);
+  *is_sleeping = true;
+  pthread_cond_wait(thread_cond, thread_lock);
+  pthread_mutex_unlock(thread_lock);
+
   LOG_VERBOSE << "Entering loop for thread " << self;
   while (true) {
     pthread_mutex_lock(thread_lock);
-    if ((!worker_thread->todo_task_dequeue.empty())) {
+    if ((!worker_thread->todo_task_dequeue.empty()) && (worker_thread->resource_state != 3)) {
       auto *task = worker_thread->todo_task_dequeue.front();
       worker_thread->todo_task_dequeue.pop_front();
       worker_thread->task = task;
@@ -136,13 +142,8 @@ void *hardware_thread(void *ptr) {
           }
         }
 #endif
-        clock_gettime(CLOCK_MONOTONIC_RAW, &(worker_thread->task->start));
-        last_busy = (worker_thread->task->start.tv_sec * SEC2NANOSEC) + (worker_thread->task->start.tv_nsec);
-        if (last_avail != 0) {
-          //worker_thread->task->prev_idle_time = (last_busy - last_avail);
-        } else {
-          //worker_thread->task->prev_idle_time = 0;
-        }
+        last_busy = cedrGetTime(worker_thread->time_per_cycle);
+        worker_thread->task->start = last_busy;
 
         // TODO: This is currently basically being handled in attemptToAssignTaskToPE. Is that better? worse? idk.
         //  The benefit of having it there is that instantaneous updates of avail time give schedulers like HEFT_RT
@@ -162,11 +163,12 @@ void *hardware_thread(void *ptr) {
                    run_args[14], run_args[15], run_args[16], run_args[17], run_args[18], run_args[19]);
         cedr_barrier_t *barrier = task->kernel_barrier;
         pthread_mutex_lock(barrier->mutex);
-        (*(barrier->completion_ctr))++;
-        pthread_cond_signal(barrier->cond);
+        if (++(*(barrier->completion_ctr)) == *(barrier->completion) ){
+          pthread_cond_signal(barrier->cond);
+        }
         pthread_mutex_unlock(barrier->mutex);
-        clock_gettime(CLOCK_MONOTONIC_RAW, &(worker_thread->task->end));
-        last_avail = (worker_thread->task->end.tv_sec * SEC2NANOSEC) + (worker_thread->task->end.tv_nsec);
+        last_avail = cedrGetTime(worker_thread->time_per_cycle);
+        worker_thread->task->end = last_avail;   
       }
 #if defined(USEPAPI)
       if (cedr_config->getUsePAPI() && PAPI_is_initialized()) {
@@ -186,27 +188,26 @@ void *hardware_thread(void *ptr) {
         }
       }
 #endif
-      LOG_VERBOSE << "Successfully executed " << worker_thread->task->task_name;
-      pthread_mutex_lock(thread_lock);
+      LOG_VERBOSE << "Successfully executed " << task->task_name;
+#if !defined(STATIC_API_COSTS)
+      cedr_config->pushDashExecTime(task->task_type, worker_thread->thread_resource_type, task->end - task->start);
+#endif
       worker_thread->completed_task_dequeue.push_back(task);
       worker_thread->resource_state = 0;
-      pthread_mutex_unlock(thread_lock);
+      //pthread_mutex_unlock(thread_lock);
     } else {
       if (worker_thread->resource_state == 3) {
         pthread_mutex_unlock(thread_lock);
         break;
       }
       pthread_mutex_unlock(thread_lock);
-      last_avail = 0;
-      last_busy = 0;
     }
     sched_yield();
   }
   return nullptr;
 }
 
-void spawn_worker_thread(ConfigManager &cedr_config, pthread_t *pthread_handles, worker_thread *hardware_thread_handle, pthread_mutex_t *resource_mutex,
-                         uint8_t res_type, uint32_t global_idx, uint32_t cluster_idx) {
+void spawn_worker_thread(ConfigManager &cedr_config, pthread_t *pthread_handles, worker_thread *hardware_thread_handle, uint8_t res_type, uint32_t global_idx, uint32_t cluster_idx) {
   const unsigned int processor_count = std::thread::hardware_concurrency();
   int ret;
 
@@ -223,11 +224,18 @@ void spawn_worker_thread(ConfigManager &cedr_config, pthread_t *pthread_handles,
   hardware_thread_handle[global_idx].resource_cluster_idx = cluster_idx;
   hardware_thread_handle[global_idx].thread_avail_time = 0; // TODO: should it be set to current time instead?
 
+  unsigned int resource_id = cedr_config.getResourceCount(res_type);
+  cedr_config.setResourceToGlobalID(res_type, resource_id, global_idx);
+  resource_id++;
+  cedr_config.setResourceCount(res_type, resource_id);
+
   hardware_thread_handle[global_idx].cedr_config = &cedr_config;
 
-  pthread_mutex_init(&(resource_mutex[global_idx]), nullptr);
+  pthread_mutex_init(&(hardware_thread_handle[global_idx].resource_mutex), nullptr);
+  pthread_cond_init(&(hardware_thread_handle[global_idx].resource_cond), nullptr);
+  hardware_thread_handle[global_idx].is_sleeping = false;
+  hardware_thread_handle[global_idx].time_per_cycle = cedrGetTimePerCycle();
   thread_argument->thread = &(hardware_thread_handle[global_idx]);
-  thread_argument->thread_lock = &(resource_mutex[global_idx]);
 
   // Spawn thread, check errors, and set affinity
   ret = pthread_create(&(pthread_handles[global_idx]), nullptr, hardware_thread, (void *) thread_argument);
@@ -251,7 +259,21 @@ void spawn_worker_thread(ConfigManager &cedr_config, pthread_t *pthread_handles,
     // Core 0: reserved for CEDR
     // Cores 1...N: used for worker threads
     // This is the same as looping over indices 0...(N-1) and then adding 1
-    int cpu_idx = 1 + (global_idx % (processor_count-1));
+
+    // Only CPU as resource
+    int cpu_idx = processor_count - 1 - (global_idx%(processor_count-1) + 1); // little
+    //int cpu_idx = processor_count - 1 - ((global_idx%2 + 1)); // 2big core
+    //int cpu_idx = processor_count - 1 - ((global_idx%3 + 1)); // 3big core
+    //int cpu_idx = processor_count - 1 - ((global_idx%4 + 1)); // 4big core
+
+    // CPU and FFT resources together
+    //int cpu_idx;
+    //if(res_type == 1){ // Core assignment for FFT resources 
+      //cpu_idx = 0; // 3big cores
+       //cpu_idx = processor_count - 1 - ((global_idx%2 + 3)); // 4big cores
+    //}else{ // Core assignment for CPU resources
+      //cpu_idx = processor_count - 1 - ((global_idx + 1)); // 3big or 4big cores
+    //}
     LOG_DEBUG << "Setting affinity such that thread " << global_idx + 1 << " runs on CPU " << cpu_idx;
     cpu_set_t cpu_set;
     CPU_ZERO(&cpu_set);
@@ -281,22 +303,28 @@ void spawn_worker_thread(ConfigManager &cedr_config, pthread_t *pthread_handles,
       LOG_FATAL << "Unable to set pthread scheduling policy for an accelerator worker thread: " << errMsg;
       exit(1);
     }
-  } else {
-    
+  } else{// if (global_idx >= 2) {
+    struct sched_param sp;
+    // Otherwise, use the "real-time" SCHED_RR with a priority of 99
+    //sp.sched_priority = 99;
+    LOG_DEBUG << "Modifying the scheduling policy for thread " << global_idx + 1 << " to run with SCHED_OTHER";
+    ret = pthread_setschedparam(pthread_handles[global_idx], SCHED_OTHER, &sp);
   }
 
   LOG_DEBUG << "Finished spawning thread " << global_idx + 1;
 }
 
-void initializeThreads(ConfigManager &cedr_config, pthread_t *resource_handle, worker_thread *hardware_thread_handle, pthread_mutex_t *resource_mutex) { 
+void initializeThreads(ConfigManager &cedr_config, pthread_t *resource_handle, worker_thread *hardware_thread_handle) { 
+  const unsigned int processor_count = std::thread::hardware_concurrency();
   // Start by configuring the affinity and scheduler of the main CEDR thread (this thread)
   pthread_t current_thread = pthread_self();
 
   // We only want CEDR to run on CPU 0
   cpu_set_t scheduler_affinity;
   CPU_ZERO(&scheduler_affinity);
-  CPU_SET(0, &scheduler_affinity);
+  CPU_SET(processor_count-1, &scheduler_affinity);
   pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &scheduler_affinity);
+  LOG_VERBOSE << "CEDR main thread set to CPU " << (processor_count-1);
 
   // Sometimes, we like to override the scheduling policy followed by the linux kernel to SCHED_RR for the CEDR thread
   // If that is the case, uncomment this
@@ -307,7 +335,6 @@ void initializeThreads(ConfigManager &cedr_config, pthread_t *resource_handle, w
   // }
   
   uint32_t global_idx = 0;
-  const unsigned int processor_count = std::thread::hardware_concurrency();
 
   for (uint8_t res_type = 0; res_type < (uint8_t) resource_type::NUM_RESOURCE_TYPES; res_type++) {
     const unsigned int workers_to_spawn = cedr_config.getResourceArray()[res_type];
@@ -318,7 +345,7 @@ void initializeThreads(ConfigManager &cedr_config, pthread_t *resource_handle, w
     
     for (uint32_t cluster_idx = 0; cluster_idx < workers_to_spawn; cluster_idx++) {
       LOG_DEBUG << "Spawning thread " << global_idx+1 << ". This is a worker thread for resource: " << resource_type_names[res_type] << " " << cluster_idx+1;
-      spawn_worker_thread(cedr_config, resource_handle, hardware_thread_handle, resource_mutex, res_type, global_idx, cluster_idx);
+      spawn_worker_thread(cedr_config, resource_handle, hardware_thread_handle, res_type, global_idx, cluster_idx);
       global_idx++;
     }
   }

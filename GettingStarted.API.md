@@ -246,7 +246,7 @@ Execution of CEDR is the same as the x86_64 version. In one terminal launch CEDR
 ```
 After launching CEDR, you should see the function handles for FFT and GEMM accelerators are successfully grabbed.
 
-In another terminal, we will submit two instances of `radar_correlator` using `sub_dag`:
+In another terminal, we will submit two instances of r`adar_correlator` using `sub_dag`:
 
 ```bash
 ./sub_dag -a ./radar_correlator-aarch64.so -n 2
@@ -269,5 +269,6 @@ app_id: 1, app_name: radar_correlator-aarch64, task_id: 2, task_name: FFT, resou
 We can see that all the resources available for FFT execution (`cpu1`, `cpu2`, `cpu3`, `fft1`, and `fft2`) are being used.
 
 ## CEDR Compilation - GPU
+
 
 **Whoops this is the end of the tutorial go yell at whoever wrote it**

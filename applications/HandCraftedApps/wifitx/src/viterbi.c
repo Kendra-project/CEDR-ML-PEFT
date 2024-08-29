@@ -7,6 +7,10 @@
 
 #define SEC2NANOSEC 1000000000
 
+#ifdef EXPERIMENT
+#define printf(...)
+#endif
+
 viterbiEncoder_t vEncoder[MAX_VITERBI];
 viterbiDecoder_t vDecoder[MAX_VITERBI];
 

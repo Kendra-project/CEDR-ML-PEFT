@@ -36,6 +36,9 @@
 //#include <stdbool.h>
 #include "dash.h"
 
+#include <inttypes.h>
+#define SEC2NANOSEC 1000000000
+
 static char         attr[1024];
 int                 fft_id;
 
@@ -308,25 +311,35 @@ int main() {
       bool forwardTrans = false;
 
       // Parallel DASH_FFT portion ----------------------------------------------------------------
-      //printf("Initializing barrier logic, calling non-blocking APIs, and awaiting completion...\n");
 
       pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
       pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
       uint32_t completion_ctr = 0;
-      cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr};
-      pthread_mutex_lock(barrier.mutex);
+      uint32_t completion = SYM_NUM;
+      cedr_barrier_t barrier = {.cond = &cond, .mutex = &mutex, .completion_ctr = &completion_ctr, .completion = &completion};
+
+      int counter = 0;
+
+      struct timespec current_timespec {};
+      clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+      uint64_t start_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
 
       // Non-blocking API call to DASH_FFT
       for(i=0; i<SYM_NUM; i++) {
-
-              DASH_FFT_flt_nb(&ifft_input[i], &ifft_output[i], &size, &forwardTrans, &barrier);
+        DASH_FFT_flt_nb(&ifft_input[i], &ifft_output[i], &size, &forwardTrans, &barrier);
       }
+
+      pthread_mutex_lock(barrier.mutex);
       // Pthread condition to wait upon
-      while (completion_ctr != SYM_NUM) {
+      if (completion_ctr != SYM_NUM) {
         pthread_cond_wait(barrier.cond, barrier.mutex);
-        //printf("%u FFTs have been completed...\n", completion_ctr);
       }
       pthread_mutex_unlock(barrier.mutex);
+
+      clock_gettime(CLOCK_MONOTONIC_RAW, &current_timespec);
+      uint64_t end_time = current_timespec.tv_nsec + current_timespec.tv_sec * SEC2NANOSEC;
+      printf("FFT block %d exec time is: %" PRIu64 "\n", counter, end_time-start_time);
+      counter++;
       //--------------------------------------------------------------------------------------------
               
       for(i=0; i<SYM_NUM; i++) { 
@@ -492,7 +505,7 @@ int main() {
    free(txdata);
 
   // printf("[nk] Non-kernel thread execution is complete...\n");
-  //printf("[WiFi-TX] Execution is complete...\n");
+  // printf("[WiFi-TX] Execution is complete...\n");
   return 0;
 }
 

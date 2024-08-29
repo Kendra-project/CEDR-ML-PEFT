@@ -241,7 +241,7 @@ int main(void) {
     }
     fclose(fp);
   }
-  printf("[SAR] Execution is complete...\n");
+  // printf("[SAR] Execution is complete...\n");
   
   return 0;
 }

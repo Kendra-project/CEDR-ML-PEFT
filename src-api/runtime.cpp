@@ -16,7 +16,11 @@
 #include <sched.h>
 #include <pthread.h>
 #include <cstdarg>
+#include <climits>
+#include <cinttypes>
 
+// LUT array
+int LUT_array[api_types::NUM_API_TYPES] = {-1};
 
 // Initialize ready and poison queues
 std::deque<task_nodes *> ready_queue;   // INFO: Use for storing DASH_API tasks only <- APPs will push DASH_API calls into this queue
@@ -138,8 +142,8 @@ void parseAPIImplementations(ConfigManager &cedr_config) {
     LOG_INFO << "Attempting to open dash binary at " << dash_so_path;
 
     void *dash_dlhandle = dlopen(dash_so_path.c_str(), RTLD_LAZY | RTLD_GLOBAL);
-  
     if(!dash_dlhandle) {
+      LOG_ERROR << "Failed to open dash binary";
       fprintf(stderr, "Failed to open DASH library at: %s. Please ensure the shared object is present or adjust your configuration file.\nFurther details are provided below:\n%s\n", dash_so_path.c_str(), dlerror());
       exit(1);
     }
@@ -183,9 +187,23 @@ void closeAPIImplementations(void) {
   }
 }
 
-void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle, worker_thread *hardware_thread_handle, pthread_mutex_t *resource_mutex) {
-  LOG_DEBUG << "Beginning execution of Performance mode";
+void initializeLUT(ConfigManager &cedr_config) {
+  for (int api = 0; api < api_types::NUM_API_TYPES; api++) {
+    std::pair<resource_type, uint64_t> min_resource = {resource_type::cpu, std::numeric_limits<uint64_t>::max()};
+    for (int res = 0; res < resource_type::NUM_RESOURCE_TYPES; res++) {
+      uint64_t exec_time = cedr_config.getDashExecTime((api_types) api, (resource_type) res);
+      if (exec_time < min_resource.second) {
+        min_resource = { (resource_type) res, exec_time };
+      }
+    }
+    // Simple LUT assignment, assign best resource for current task, might need sophistication to resolve conflict 
+    LUT_array[api] = min_resource.first;
+  }
+}
 
+void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle, worker_thread *hardware_thread_handle) {
+  LOG_DEBUG << "Beginning execution of Performance mode";
+  
   struct timespec real_current_time {};
 
   struct timespec sleep_time {};
@@ -209,6 +227,7 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
 
   // Scan our provided API binary for implementations that can be used for each of our various APIs
   parseAPIImplementations(cedr_config);
+  initializeLUT(cedr_config);
 
   // Construct a min heap-style priority queue where the application with the
   // lowest arrival time is always on top
@@ -216,10 +235,11 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
   std::priority_queue<cedr_app *, std::vector<cedr_app *>, decltype(app_comparator)> unarrived_apps(app_comparator);
 
   std::list<cedr_app *> arrived_nonstreaming_apps;
+  std::list<cedr_app *> completed_nonstreaming_apps;
 
   int appNum = 0;
 
-  int completed_task_queue_length = 0;
+  size_t completed_task_queue_length = 0;
 
   uint32_t free_resource_count = cedr_config.getTotalResources();
 
@@ -255,7 +275,8 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
     LOG_INFO << "Run logs will be created in : " << log_path;
   }
 
-  long long emul_time;
+
+  uint64_t emul_time;
   bool receivedFirstSubDag = false;
   // Bind all the parameters to this lambda from their outside references such that, when we call the lambda, we don't
   // need a million arguments
@@ -267,8 +288,15 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
   cpu_set_t non_kernel_cpuset;
   const unsigned int processor_count = std::thread::hardware_concurrency();
   CPU_ZERO(&non_kernel_cpuset);
-  for (int cpu_id = 1; cpu_id < processor_count; cpu_id++) {
+  // Core assignments for application threads
+  //for (int cpu_id = processor_count-2; cpu_id >= 3; cpu_id--) { //little
+  //for (int cpu_id = processor_count-2; cpu_id >= 0; cpu_id--) { //3big or 4big (app threads are handled by all CPUs)
+
+  // Only CPU resources handle the threads
+  //for (int cpu_id = processor_count-2; cpu_id >= 1; cpu_id--) { //3big cores
+  for (int cpu_id = processor_count-2; cpu_id >= 2; cpu_id--) { //4big cores
     CPU_SET(cpu_id, &non_kernel_cpuset);
+    LOG_VERBOSE << "Including CPU " << cpu_id << " to available core list that applications can use for NK execution";
   }
 
   // Variable to keep track of killed/resolved applications
@@ -297,7 +325,7 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
         }
         const std::string pathToSO(soPaths[appIdx]);
         const uint64_t num_inst = num_instances[appIdx];
-        const uint64_t period = periods[appIdx];
+        const uint64_t period = uint64_t(periods[appIdx]);       
         if (num_inst == 0) {
           LOG_WARNING << "APP " << pathToSO << " was injected, but 0 instances were requested, so I'm skipping it";
           continue;
@@ -334,14 +362,12 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
           distribution = std::exponential_distribution<double>(1.0f / period);
         }
         while (prototypeAppPtr && (new_apps_instantiated < num_inst)) {
-          clock_gettime(CLOCK_MONOTONIC_RAW, &real_current_time);
-          emul_time = (real_current_time.tv_sec * SEC2NANOSEC + real_current_time.tv_nsec);
+          emul_time = cedrGetTime(hardware_thread_handle[0].time_per_cycle);
           new_app = (cedr_app *)calloc(1, sizeof(cedr_app));
           *new_app = *prototypeAppPtr;
           new_app->app_id = appNum;
           new_app->task_count = 0;
           new_app->is_running = false;
-          new_app->completed_task_count = 0;
           new_app->arrival_time = emul_time + accum_period * US2NANOSEC;
           if (cedr_config.getFixedPeriodicInjection()) {
             accum_period += period;
@@ -360,70 +386,71 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
       // SEC2NANOSEC + (ipc_time_end.tv_nsec - ipc_time_start.tv_nsec) << " nanoseconds";
 
     } else if (ipc_cmd.cmd_type == SERVER_EXIT || shouldExitEarly()) {
-      LOG_INFO << "Command to terminate daemon process received";
-      for (int i = 0; i < cedr_config.getTotalResources(); i++) {
-        while (true){
-          pthread_mutex_lock(&(resource_mutex[i]));
-          if(hardware_thread_handle[i].todo_task_dequeue.empty() && hardware_thread_handle[i].resource_state == 0){
-            pthread_mutex_unlock(&(resource_mutex[i]));
-            break;
+        LOG_INFO << "Command to terminate daemon process received";
+        // Wait for HW threads termination
+        for (int i = 0; i < cedr_config.getTotalResources(); i++) {
+          while (true){
+            pthread_mutex_lock(&(hardware_thread_handle[i].resource_mutex));
+            if (hardware_thread_handle[i].resource_state == 0) {
+              hardware_thread_handle[i].resource_state = 3;
+              pthread_mutex_unlock(&(hardware_thread_handle[i].resource_mutex));
+              break;
+            }
+            pthread_mutex_unlock(&(hardware_thread_handle[i].resource_mutex));
           }
-          pthread_mutex_unlock(&(resource_mutex[i]));
         }
-        // terminate other pthreads
-        pthread_mutex_lock(&(resource_mutex[i]));
-        hardware_thread_handle[i].resource_state = 3;
-        pthread_mutex_unlock(&(resource_mutex[i]));
+
+      if (arrived_nonstreaming_apps.size() != 0) {
+      	LOG_INFO << "Remaining applications running are " << arrived_nonstreaming_apps.size();
       }
-        // NEW: Add something that joins any running application 'main' function pthread
-        // TODO: Needs revision in the following for loops to ensure validity
-        LOG_INFO << "Remaining applications running are " << arrived_nonstreaming_apps.size();
-        // NEW: Join all the threads regardless of weather they have completed or not.
-        for (auto task : poison_queue){
-          pthread_join(task->parent_app_pthread, NULL);
+      // Join the app threads that have completed
+      pthread_mutex_lock(&poison_queue_mutex);
+      for (auto task : poison_queue){
+        pthread_join(task->parent_app_pthread, NULL);
+        // TODO: Mark end time as the push time of poison task instead of current_time.
+        task->app_pnt->finish_time = cedrGetTime(hardware_thread_handle[0].time_per_cycle);
 
-          // App runtime logging
-          clock_gettime(CLOCK_MONOTONIC_RAW, &real_current_time);
-          struct struct_applogging applog_obj {};
-          strncpy(applog_obj.app_name, task->app_pnt->app_name, 50);
-          applog_obj.app_id = task->app_pnt->app_id;
-          applog_obj.arrival = task->app_pnt->arrival_time;
-          applog_obj.start = task->app_pnt->start_time;
-          applog_obj.end = (real_current_time.tv_sec * SEC2NANOSEC + real_current_time.tv_nsec);
-          applog_obj.app_runtime = applog_obj.end - applog_obj.start;
-          applog_obj.app_lifetime = applog_obj.end - applog_obj.arrival;
-          app_log.push_back(applog_obj);
+        resolved_app_count++;
+        arrived_nonstreaming_apps.remove(task->app_pnt);
+        
+        // Removing corresponding pthread map of erased_app
+        pthread_mutex_lock(&app_thread_map_mutex);
+        auto map_remove = app_thread_map.find(task->app_pnt->app_pthread);
+        app_thread_map.erase(map_remove);   
+        pthread_mutex_unlock(&app_thread_map_mutex);
+        
+        completed_nonstreaming_apps.push_front(task->app_pnt);
+        LOG_INFO << "Joined pthread of application " << task->app_pnt->app_name << "_" << task->app_pnt->app_id;
+        }
+      pthread_mutex_unlock(&poison_queue_mutex);
 
-          resolved_app_count++;
-          arrived_nonstreaming_apps.remove(task->app_pnt);
-          LOG_INFO << "Joined pthread of application " << task->app_pnt->app_name;
+      // Kick out forcibly the arrived_nonstreaming_apps threads that are still running
+      // INFO: These applications are not logged
+      if (!arrived_nonstreaming_apps.size()){
+        LOG_INFO << "At the end, remaining unresolved app number is " << arrived_nonstreaming_apps.size();
+        for (auto running_app : arrived_nonstreaming_apps){
+          pthread_cancel(running_app->app_pthread);
+          killed_app_count++;
+          pthread_mutex_lock(&app_thread_map_mutex);
+          app_thread_map.erase(running_app->app_pthread);
+          pthread_mutex_unlock(&app_thread_map_mutex);
+          arrived_nonstreaming_apps.remove(running_app);
         }
-        // NEW: Kick out forcibly the arrived_nonstreaming_apps threads
-        if (!arrived_nonstreaming_apps.size()){
-          LOG_INFO << "At the end, remaining unresolved app number is " << arrived_nonstreaming_apps.size();
-          for (auto running_app : arrived_nonstreaming_apps){
-            pthread_cancel(running_app->app_pthread);
-            killed_app_count++;
-            pthread_mutex_lock(&app_thread_map_mutex);
-            app_thread_map.erase(running_app->app_pthread);
-            pthread_mutex_unlock(&app_thread_map_mutex);
-            arrived_nonstreaming_apps.remove(running_app);
-          }
-        }
+      }
 
       ipc_cmd.cmd_type = NOPE;
       LOG_INFO << "Exit command initiated. Terminating runtime while-loop";
       break;
     }
 
-    // Push the heads nodes of the the newly arrived applications on the ready_queue
-    clock_gettime(CLOCK_MONOTONIC_RAW, &real_current_time);
-    emul_time = (real_current_time.tv_sec * SEC2NANOSEC + real_current_time.tv_nsec);
+    // Push the heads nodes of the the newly arrived applications on the ready_queue  
+    emul_time = cedrGetTime(hardware_thread_handle[0].time_per_cycle); 
+   
     while (!unarrived_apps.empty() && (unarrived_apps.top()->arrival_time <= emul_time)) {
       cedr_app *app_inst = unarrived_apps.top();
       LOG_DEBUG << "Application: (" << app_inst->app_name << ", " << app_inst->app_id << ") arrived at time " << emul_time;
       unarrived_apps.pop();
-      
+
       app_inst->arrival_time = emul_time;
       // numParallelApps++;
       arrived_nonstreaming_apps.push_back(app_inst);
@@ -456,12 +483,11 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
         pthread_attr_setschedparam(&non_kernel_attr, &non_kernel_schedparams);
 
         // NOTE: Finally creating thread
-        clock_gettime(CLOCK_MONOTONIC_RAW, &real_current_time);
+        uint64_t clock_vir = cedrGetTime(hardware_thread_handle[0].time_per_cycle);          
         pthread_create(&(app->app_pthread), &non_kernel_attr, (void *(*)(void *)) nk_thread_func, (void*) app->main_func_handle);
-        app->start_time = (real_current_time.tv_sec * SEC2NANOSEC + real_current_time.tv_nsec);
+        app->start_time = clock_vir;
         app->is_running = true;
         LOG_INFO << "Thread for application " << app->app_name << " launched!";
-
         pthread_mutex_lock(&app_thread_map_mutex);
         app_thread_map[app->app_pthread] = app; // NEW: Store application structs indexed by their main thread
         pthread_mutex_unlock(&app_thread_map_mutex);
@@ -473,12 +499,13 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
         LOG_INFO << "Scheduling round found " << ready_queue.size() << " tasks in ready task queue!";
         struct struct_schedlogging schedlog_obj {};
         schedlog_obj.ready_queue_size = ready_queue.size();
-        clock_gettime(CLOCK_MONOTONIC_RAW, &schedule_starttime);
-        performScheduling(cedr_config, ready_queue, hardware_thread_handle, resource_mutex, free_resource_count);
-        clock_gettime(CLOCK_MONOTONIC_RAW, &schedule_stoptime);
-        schedlog_obj.start = schedule_starttime;
-        schedlog_obj.end = schedule_stoptime;
-        schedlog_obj.scheduling_overhead = (schedule_stoptime.tv_sec * SEC2NANOSEC + schedule_stoptime.tv_nsec) - (schedule_starttime.tv_sec * SEC2NANOSEC + schedule_starttime.tv_nsec);
+        uint64_t clock_vir0 = cedrGetTime(hardware_thread_handle[0].time_per_cycle);
+        performScheduling(cedr_config, ready_queue, hardware_thread_handle, free_resource_count);
+        uint64_t clock_vir1 = cedrGetTime(hardware_thread_handle[0].time_per_cycle);    
+        schedlog_obj.start = clock_vir0;
+        schedlog_obj.end = clock_vir1;
+        schedlog_obj.scheduling_overhead = (clock_vir1 - clock_vir0);
+        LOG_INFO << "scheduling_overhead: " << (clock_vir1 - clock_vir0);
         sched_log.push_back(schedlog_obj);
         LOG_DEBUG << "Ready queue has " << ready_queue.size() << " number of tasks after launching application threads!";
         pthread_mutex_unlock(&ready_queue_mutex);
@@ -486,100 +513,147 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
         pthread_mutex_unlock(&ready_queue_mutex);
     }
 
-    // NEW: Unload tasks from completed_task_queue in order to log them in logging struct queue
-    for (int i = 0; i < cedr_config.getTotalResources(); i++){
-      pthread_mutex_lock(&(resource_mutex[i]));
-      completed_task_queue_length = hardware_thread_handle[i].completed_task_dequeue.size() ;
-      pthread_mutex_unlock(&(resource_mutex[i])) ;
-      if (!completed_task_queue_length){
-        // No tasks in completed task deque, move on to next worker thread
-        continue;
-      }
-
-      LOG_VERBOSE << "Resource " << i << " has completed tasks, popping them off";
-      for (int t = 0; t < completed_task_queue_length; t++){
-        pthread_mutex_lock(&(resource_mutex[i]));
-        task_nodes *task = hardware_thread_handle[i].completed_task_dequeue.front();
-        hardware_thread_handle[i].completed_task_dequeue.pop_front();
-        pthread_mutex_unlock(&(resource_mutex[i]));
-        // NEW
-        task->app_pnt->completed_task_count++;
-
-        struct struct_logging log_obj {};
-        strcpy(log_obj.app_name, task->app_pnt->app_name);
-        log_obj.task_id = task->task_id;
-        log_obj.app_id = task->app_pnt->app_id;
-        strcpy(log_obj.task_name, task->task_name.c_str());
-        strcpy(log_obj.assign_resource_name, task->assigned_resource_name.c_str());
-        log_obj.start = task->start;
-        log_obj.end = task->end;
-        stream_timing_log.push_back(log_obj);
-        free(task);
-      }
-    }
-
-    // NEW: Remove applications that are completed and have pushed their poison pills
+    // Remove completed applications from arrived_nonstreaming_apps queue and 
+    // push to the completed_nonstreaming_apps queue for logging purposes
     pthread_mutex_lock(&poison_queue_mutex);
     for (auto poison_task = poison_queue.begin(), poison_task_end = poison_queue.end(); poison_task != poison_task_end;){
       auto poison_task_erase = poison_task; poison_task++;
       const auto erased_app = (*poison_task_erase)->app_pnt;
-      if (erased_app->completed_task_count == erased_app->task_count){  // INFO: completed_task_count indicates number of tasks
-                                                                        // recorded in the log file. To avoid segfaults, we want to
-                                                                        // erase an application once all of its tasks are logged.
-        int J = pthread_join((*poison_task_erase)->parent_app_pthread, NULL);
 
-        // App runtime logging
-        clock_gettime(CLOCK_MONOTONIC_RAW, &real_current_time);
-        struct struct_applogging applog_obj {};
-        strncpy(applog_obj.app_name, erased_app->app_name, 50);
-        applog_obj.app_id = erased_app->app_id;
-        applog_obj.arrival = erased_app->arrival_time;
-        applog_obj.start = erased_app->start_time;
-        applog_obj.end = (real_current_time.tv_sec * SEC2NANOSEC + real_current_time.tv_nsec);
-        applog_obj.app_runtime = applog_obj.end - applog_obj.start;
-        applog_obj.app_lifetime = applog_obj.end - applog_obj.arrival;
-        app_log.push_back(applog_obj);
-
-        if (J==0) {
-          LOG_VERBOSE << "Joined application (non-kernel) thread with id " << erased_app->app_pthread;
-          resolved_app_count++;
-          LOG_INFO << "Number of resolved applications: " << resolved_app_count << "; Number of killed applications: " << killed_app_count;
-        } else {
-          LOG_ERROR << "Failed to join thread with id " << erased_app->app_pthread;
-          exit(1);  // TODO: Don't exit, may be handle it better
-        }
-        //const auto erased_app = (*poison_task_erase)->app_pnt;
-        arrived_nonstreaming_apps.remove(erased_app);
-        // Removing corresponding pthread map of erased_app
-        auto map_remove = app_thread_map.find(erased_app->app_pthread);
-        app_thread_map.erase(map_remove);
-        free(erased_app);   // TODO: Can we get around without freeing the app? Might interfere if a poison-task is processed before a DASH task from completed_task_queue
-
-        free(*poison_task_erase);
-        poison_queue.erase(poison_task_erase);
+      int J = pthread_join((*poison_task_erase)->parent_app_pthread, NULL);
+      erased_app->finish_time = cedrGetTime(hardware_thread_handle[0].time_per_cycle);
+      
+      if (J==0) {
+        LOG_VERBOSE << "Joined application (non-kernel) thread with id " << erased_app->app_pthread;
+        resolved_app_count++;
+        LOG_INFO << "Number of resolved applications: " << resolved_app_count << "; Number of killed applications: " << killed_app_count;
+      } else {
+        // TODO: Instead of killing CEDR, can we use pthread_cancel to force quit? 
+	      // In that case CEDR won't need to exit.
+        LOG_ERROR << "Failed to join thread with id " << erased_app->app_pthread;
+        exit(1);
       }
+      arrived_nonstreaming_apps.remove(erased_app);
+      // Removing corresponding pthread map of erased_app
+      pthread_mutex_lock(&app_thread_map_mutex);
+      auto map_remove = app_thread_map.find(erased_app->app_pthread);
+      app_thread_map.erase(map_remove);
+      pthread_mutex_unlock(&app_thread_map_mutex);
+
+      completed_nonstreaming_apps.push_front(erased_app);
+      free(*poison_task_erase);
+      poison_queue.erase(poison_task_erase);
     }
     pthread_mutex_unlock(&poison_queue_mutex);
-
     // pthread_yield();
   }
 
   for (int i = 0; i < cedr_config.getTotalResources(); i++) {
+    if(hardware_thread_handle[i].is_sleeping == true)
+    {
+      pthread_cond_signal(&(hardware_thread_handle[i].resource_cond));
+      hardware_thread_handle[i].is_sleeping = false;
+    }
     pthread_join(resource_handle[i], nullptr);
   }
+
   LOG_INFO << "Terminated threads";
   sleep_time.tv_sec = 0;
   sleep_time.tv_nsec = 10000000;
-  nanosleep(&sleep_time, nullptr);
-  long long earliestStart = std::numeric_limits<long long>::max();
-  long long latestFinish = 0;
+  nanosleep(&sleep_time, nullptr);  
+  
+  // Log tasks from the completed task queues and free them
+  unsigned int total_resource_count = cedr_config.getTotalResources();
+  for (unsigned int i = 0; i < total_resource_count; i++) {
+    completed_task_queue_length = hardware_thread_handle[i].completed_task_dequeue.size();
+    while (completed_task_queue_length != 0) {
+      task_nodes *task = hardware_thread_handle[i].completed_task_dequeue.front();
+      hardware_thread_handle[i].completed_task_dequeue.pop_front();
+
+      struct struct_logging log_obj {};
+      strcpy(log_obj.app_name, task->app_pnt->app_name);
+      log_obj.task_id = task->task_id;
+      log_obj.app_id = task->app_pnt->app_id;
+      strcpy(log_obj.task_name, task->task_name.c_str());
+      strcpy(log_obj.assign_resource_name, task->assigned_resource_name.c_str());
+      log_obj.start = task->start;
+      log_obj.end = task->end;
+      stream_timing_log.push_back(log_obj);
+      free(task);
+
+      completed_task_queue_length--;
+    }
+  }
+
+  // Log completed applications from completed_nonstreaming_app list and free them
+  for (auto completed_app = completed_nonstreaming_apps.begin(), completed_app_end = completed_nonstreaming_apps.end(); completed_app!=completed_app_end;) {
+    struct struct_applogging applog_obj {};
+    auto erase_app = (*completed_app); completed_app++;
+    strncpy(applog_obj.app_name, erase_app->app_name, 50);
+    applog_obj.app_id = erase_app->app_id;
+    applog_obj.arrival = erase_app->arrival_time;
+    applog_obj.start = erase_app->start_time;
+    applog_obj.end = erase_app->finish_time; 
+    applog_obj.app_runtime = applog_obj.end - applog_obj.start;
+    applog_obj.app_lifetime = applog_obj.end - applog_obj.arrival;
+    app_log.push_back(applog_obj);
+
+    completed_nonstreaming_apps.remove(erase_app);
+    free(erase_app);
+  }
+
+
+  uint64_t earliestStart = std::numeric_limits<uint64_t>::max();
+  uint64_t latestFinish = 0;
+
+#if defined(ENABLE_IL_ORACLE_LOGGING)
+  ////////////////////////////////////
+  // IL-Sched
+  ////////////////////////////////////
+  // Write out all the tasks (features and labels) to file
+  ////////////////////////////////////
+  if (cedr_config.getScheduler().compare("EFT") == 0 || cedr_config.getScheduler().compare("ETF") == 0) {
+    std::list<struct_ILOracle_task> task_list;
+    struct_ILOracle_task task_info;
+    task_list = cedr_config.getILOracleTaskList();
+    // task_it   = task_list.begin();
+
+    std::list<struct_ILOracle_task>::iterator task_it;
+    std::list<struct_ILOracle_PE>::iterator pe_it;
+
+    // Check if trace file creation results in errors
+    FILE *il_oracle_fp;
+    il_oracle_fp = fopen((log_path + "/il_oracle.log").c_str(), "w");
+
+    if (il_oracle_fp == nullptr){
+      LOG_ERROR << "Error outputting IL Oracle file!";
+    } else {
+      // Iterate over all tasks in Oracle
+      for (task_it = task_list.begin(); task_it != task_list.end(); ++task_it) {
+
+        // Iterate over all PEs for each task
+        for (pe_it = (*task_it).PEInfo.begin(); pe_it != (*task_it).PEInfo.end(); ++pe_it) {
+            fprintf(il_oracle_fp, "%d,%" PRId64 ",", (*pe_it).isSupported, (*pe_it).finish_time);
+        }
+        fprintf(il_oracle_fp, "%d\n", (*task_it).resource_index);
+      }
+
+      // Close file handles and change permissions
+      fclose(il_oracle_fp);
+      chmod((log_path + "/il_oracle.csv").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    }
+  }
+  ////////////////////////////////////  
+
+#else
   {
     // Sort the stream timing log based on start time of tasks
     // This resolves edge cases where tasks are pushed into the stream_timing_log in the "wrong" order because of
-    // the order in which CEDR checks for completed applications across all PEs
+    // the order in which CEDR checks for completed applications across all PEs   
     stream_timing_log.sort([](struct struct_logging first, struct struct_logging second) {
-      return (first.start.tv_nsec + first.start.tv_sec * SEC2NANOSEC) < (second.start.tv_nsec + second.start.tv_sec * SEC2NANOSEC);
+      return (first.start) < (second.start);
     });
+
     std::list<struct struct_logging>::iterator it;
     it = stream_timing_log.begin();
     FILE *trace_fp = fopen((log_path + "/timing_trace.log").c_str(), "w");
@@ -589,9 +663,9 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
       while (it != stream_timing_log.end()) {
 
         struct struct_logging task = *it;
-        long long s0, e0;
-        s0 = (task.start.tv_sec * SEC2NANOSEC + task.start.tv_nsec);
-        e0 = (task.end.tv_sec * SEC2NANOSEC + task.end.tv_nsec);
+        uint64_t s0, e0;  
+        s0 = (task.start);
+        e0 = (task.end);      
 
         if (e0 > latestFinish) {
           latestFinish = e0;
@@ -602,8 +676,8 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
 
         fprintf(trace_fp,
                 "app_id: %d, app_name: %s, task_id: %d, task_name: %s, "
-                "resource_name: %s, ref_start_time: %lld, ref_stop_time: %lld, "
-                "actual_exe_time: %lld\n",
+                "resource_name: %s, ref_start_time: %" PRIu64 ", ref_stop_time: %" PRIu64 ", "
+                "actual_exe_time: %" PRIu64 "\n",
                 task.app_id, task.app_name, task.task_id, task.task_name, task.assign_resource_name, s0, e0, e0 - s0);
 
         it = stream_timing_log.erase(it);
@@ -613,7 +687,6 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
     chmod((log_path + "/timing_trace.log").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
   }
 
-  
   // Schedule log capturing
   {
     std::list<struct struct_schedlogging>::iterator it;
@@ -625,20 +698,21 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
       LOG_ERROR << "Error outputting schedule trace file!";
     }
     else{
-      long long total_sched_overhead = 0;
+      uint64_t total_sched_overhead = 0;
       unsigned int total_ready_tasks = 0;
       while (it != sched_log.end()){
         struct struct_schedlogging schedlog_element = *it;
-        long long s1 = schedlog_element.start.tv_sec * SEC2NANOSEC + schedlog_element.start.tv_nsec;
-        long long e1 = schedlog_element.end.tv_sec * SEC2NANOSEC + schedlog_element.end.tv_nsec;
 
-        fprintf(schedtrace_fp, "ready_queue_size: %u, ref_start_time: %lld, ref_stop_time: %lld, sheduling_overhead: %lld ns\n",
+        uint64_t s1 = schedlog_element.start;
+        uint64_t e1 = schedlog_element.end;
+
+        fprintf(schedtrace_fp, "ready_queue_size: %u, ref_start_time: %" PRIu64 ", ref_stop_time: %" PRIu64 ", sheduling_overhead: %" PRIu64 " ns\n",
                 schedlog_element.ready_queue_size, s1, e1, e1-s1);
         total_sched_overhead += (e1-s1);
         total_ready_tasks += schedlog_element.ready_queue_size;
         it = sched_log.erase(it);
       }
-      fprintf(schedtrace_fp, "total_ready_tasks: %u, total_scheduling_overhead: %lld ns",
+      fprintf(schedtrace_fp, "total_ready_tasks: %u, total_scheduling_overhead: %" PRIu64 " ns",
               total_ready_tasks, total_sched_overhead);
       fclose(schedtrace_fp);
       chmod((log_path + "/schedule_trace.log").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
@@ -646,6 +720,7 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
   }
 
   // App Runtime log capturing
+  // TODO: Add sorting of application logs by earliest to latest time, similar to task logging
   {
     std::list<struct struct_applogging>::iterator it;
     it = app_log.begin();
@@ -659,7 +734,7 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
       while (it != app_log.end()){
         struct struct_applogging applog_element = *it;
 
-        fprintf(apptrace_fp, "app_id: %d, app_name: %s, ref_arrival_time: %lld, ref_start_time: %lld, ref_end_time: %lld, app_runtime: %lld, app_lifetime: %lld \n",
+        fprintf(apptrace_fp, "app_id: %d, app_name: %s, ref_arrival_time: %" PRIu64 ", ref_start_time: %" PRIu64 ", ref_end_time: %" PRIu64 ", app_runtime: %" PRIu64 ", app_lifetime: %" PRIu64 " \n",
                 applog_element.app_id, applog_element.app_name, applog_element.arrival, applog_element.start, applog_element.end, applog_element.app_runtime, applog_element.app_lifetime);
         it = app_log.erase(it);
       }
@@ -667,6 +742,7 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
       chmod((log_path + "/appruntime_trace.log").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     }
   }
+#endif
 
   free(ipc_cmd.message);
   closeAPIImplementations();

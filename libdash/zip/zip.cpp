@@ -9,6 +9,10 @@
 #include "dma.h"
 #include "zip.h"
 
+#if DASH_PLATFORM != DASH_ZCU102_2FFT_2MMULT_1ZIP_1CONV2D_HWSCHEDULER
+  #error "ZIP is not supported on this platform!"
+#else
+
 #define SEC2NANOSEC 1000000000
 
 static volatile unsigned int* zip_control_base_addr[NUM_ZIPS];
@@ -29,7 +33,7 @@ void __attribute__((constructor)) setup_zip(void) {
   }
   
   LOG("[zip] Initializing udmabuf\n");
-  init_udmabuf(ZIP_UDAMBUF_NUM, ZIP_UDAMBUF_SIZE, &udmabuf_base_addr, &udmabuf_phys_addr);
+  init_udmabuf(ZIP_UDMABUF_NUM, ZIP_UDMABUF_SIZE, &udmabuf_base_addr, &udmabuf_phys_addr);
   LOG("[zip] udmabuf base address is 0x%p\n", udmabuf_base_addr);
 
   LOG("[zip] ZIP constructor complete!\n");
@@ -37,7 +41,7 @@ void __attribute__((constructor)) setup_zip(void) {
 
 void __attribute__((destructor)) teardown_zip(void) {
   LOG("[zip] Running ZIP destructor\n");
-  close_udmabuf(udmabuf_base_addr, ZIP_UDAMBUF_SIZE);
+  close_udmabuf(udmabuf_base_addr, ZIP_UDMABUF_SIZE);
 
   for (uint8_t i = 0; i < NUM_ZIPS; i++){
     close_zip(zip_control_base_addr[i]);
@@ -81,9 +85,8 @@ void zip_accel(zip_re_type* input0, zip_re_type* input1, zip_re_type* output, si
     case 3: // ZIP_DIV
       LOG("[zip-%u] Configuring ZIP as DIV\n", resource_idx);
       break;
-    case 4: // ZIP_COMP_MULT
-      LOG("[zip-%u] Configuring ZIP as COMP_MULT\n", resource_idx);
-      size = size*2;
+    default:
+      LOG("[zip-%u] ZIP operation not supported!\n", resource_idx);
       break;
   }
   config_zip_op(zip_control_base, op);
@@ -101,13 +104,14 @@ void zip_accel(zip_re_type* input0, zip_re_type* input1, zip_re_type* output, si
   }
 
   LOG("[zip-%u] Calling setup_rx for dma\n", resource_idx);
-  fflush(stdout);
   setup_rx(dma_control_base, udmabuf_phys + (2 * size * sizeof(float)), size * sizeof(float));
 
   clock_gettime(CLOCK_MONOTONIC_RAW, &start_accel);
 
   LOG("[zip-%u] Calling setup_tx for dma\n", resource_idx);
   setup_tx(dma_control_base, udmabuf_phys, 2 * size * sizeof(float));
+  LOG("[zip-%u] Writing to control register\n", resource_idx);
+  zip_write_reg(zip_control_base_addr[resource_idx], ZIP_AP_CTRL, ZIP_AP_START);
   
   LOG("[zip-%u] Waiting for RX to complete for dma0\n", resource_idx);
   dma_wait_for_rx_complete(dma_control_base);
@@ -191,15 +195,13 @@ void _generate_zip_test_values_(zip_re_type *zip_input0, zip_re_type *zip_input1
         zip_expected[i] = (zip_re_type) (zip_input0[i] - zip_input1[i]);
         break;
       case 2: // ZIP_MULT
-        zip_expected[i] = (zip_re_type) (zip_input0[i] * zip_input1[i]);
-        break;
-      case 3: // ZIP_DIV
-        zip_expected[i] = (zip_re_type) (zip_input0[i] / zip_input1[i]);
-        break;
-      case 4: // ZIP_COMP_MULT
         zip_expected[i] = (zip_re_type) (zip_input0[i]*zip_input1[i] - zip_input0[i+1]*zip_input1[i+1]);
         zip_expected[i+1] = (zip_re_type) (zip_input0[i+1]*zip_input1[i] + zip_input0[i]*zip_input1[i+1]);
         i++;
+        break;
+      case 3: // ZIP_DIV
+        zip_expected[i] = (zip_re_type) (zip_input0[i]*zip_input1[i] + zip_input0[i+1]*zip_input1[i+1]) / (zip_input1[i]*zip_input1[i] + zip_input1[i+1]*zip_input1[i+1]);
+        zip_expected[i+1] = (zip_re_type) (-zip_input0[i]*zip_input1[i+1] + zip_input0[i+1]*zip_input1[i]) / (zip_input1[i]*zip_input1[i] + zip_input1[i+1]*zip_input1[i+1]);
         break;
     }
   }
@@ -228,42 +230,37 @@ int main() {
   }
     LOG("[zip-%u] Beginning tests on accelerator %u\n", zip_num, zip_num);
     // Test ZIP add
-/*    op = 0;
+    op = 0;
     LOG("[zip-%u] Testing ZIP Add...\n", zip_num);
     _generate_zip_test_values_(A, B, C_expected, test_len, 0);
-    DASH_ZIP_zip(&A, &B, &C, &test_len, &op, zip_num);
+    DASH_ZIP_flt_zip(&A, &B, &C, &test_len, &op, zip_num);
     _check_zip_result_(A, B, C, C_expected, test_len);
 
      // Test ZIP sub
     op = 1;
     LOG("[zip-%u] Testing ZIP Sub...\n", zip_num);
     _generate_zip_test_values_(A, B, C_expected, test_len, 1);
-    DASH_ZIP_zip(&A, &B, &C, &test_len, &op, zip_num);
+    DASH_ZIP_flt_zip(&A, &B, &C, &test_len, &op, zip_num);
     _check_zip_result_(A, B, C, C_expected, test_len);
 
     // Test ZIP mult
     op = 2;
     LOG("[zip-%u] Testing ZIP Mult...\n", zip_num);
     _generate_zip_test_values_(A, B, C_expected, test_len, 2);
-    DASH_ZIP_zip(&A, &B, &C, &test_len, &op, zip_num);
+    DASH_ZIP_flt_zip(&A, &B, &C, &test_len, &op, zip_num);
     _check_zip_result_(A, B, C, C_expected, test_len);
-
+/*
     // Test ZIP div
     op = 3;
     LOG("[zip-%u] Testing ZIP Div...\n", zip_num);
     _generate_zip_test_values_(A, B, C_expected, test_len, 3);
-    DASH_ZIP_zip(&A, &B, &C, &test_len, &op, zip_num);
-    _check_zip_result_(A, B, C, C_expected, test_len);
-*/
-    // Test ZIP comp mult
-    op = 4;
-    LOG("[zip-%u] Testing ZIP Comp Mult...\n", zip_num);
-    _generate_zip_test_values_(A, B, C_expected, test_len*2, 4);
     DASH_ZIP_flt_zip(&A, &B, &C, &test_len, &op, zip_num);
-    _check_zip_result_(A, B, C, C_expected, test_len*2);
-  }
+    _check_zip_result_(A, B, C, C_expected, test_len);
+*/  }
   base = base*2;
   }
   free(A); free(B); free(C); free(C_expected);
 }
+#endif
+
 #endif

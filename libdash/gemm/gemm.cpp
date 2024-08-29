@@ -52,7 +52,7 @@ void gemm_fpga_kern(gemm_re_type *A_re, gemm_re_type *A_im,
                     uint8_t resource_idx) {
 
   // Making this an unconditional log because it's really nice to know even when other logs are disabled (log levels what are those?)
-  //printf("[gemm] Dispatching to (4x64 * 64x4) GEMM accelerator %u...\n", resource_idx);
+  LOG("[gemm] Dispatching to (4x64 * 64x4) GEMM accelerator %u...\n", resource_idx);
   struct timespec func_start;
   struct timespec func_end;
   struct timespec accel_start;
@@ -118,6 +118,7 @@ void gemm_fpga_kern(gemm_re_type *A_re, gemm_re_type *A_im,
 /*
  * Note: now we have two CPU implementations (DASH_GEMM_cpu and this) that could potentially diverge :(
  * At the same time, it would break our libdash architecture strategy to have this gemm module rely on code from the main dash.cpp
+ * And really, in the long term, we shouldn't have restrictions on matrix size anyway if the DAP kernels are generalized well enough
  */
 void _calculate_gemm_cpu(gemm_re_type *A, gemm_re_type *Ai, gemm_re_type *B, gemm_re_type *Bi, gemm_re_type *C, gemm_re_type *Ci, size_t A_ROW, size_t A_COL, size_t B_COL) {
   gemm_re_type res1, res2, res3, res4;

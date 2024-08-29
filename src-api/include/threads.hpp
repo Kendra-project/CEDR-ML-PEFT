@@ -8,6 +8,6 @@
 
 void *hardware_thread(void *ptr);
 
-void initializeThreads(ConfigManager &cedr_config, pthread_t *resource_handle, worker_thread *hardware_thread_handle, pthread_mutex_t *resource_mutex);
+void initializeThreads(ConfigManager &cedr_config, pthread_t *resource_handle, worker_thread *hardware_thread_handle);
 
 void cleanupThreads(ConfigManager &cedr_config);

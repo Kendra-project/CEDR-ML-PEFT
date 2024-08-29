@@ -202,7 +202,7 @@ int main(int argc, char** argv) {
       (run_func)(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], 
                  args[10], args[11], args[12], args[13], args[14]);
       
-      printf("[cedr] Execution is complete. Triggering barrier so that the other thread continues execution\n");
+      // printf("[cedr] Execution is complete. Triggering barrier so that the other thread continues execution\n");
       pthread_barrier_wait(curr_node->completion_barrier);
       
       printf("[cedr] Barrier finished, going to delete this task node now\n");

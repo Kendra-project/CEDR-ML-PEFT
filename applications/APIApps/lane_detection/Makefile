@@ -2,13 +2,19 @@ INCLUDES = ../../../libdash
 RUNTIME_LIBDIR = ../../../build/libdash
 STANDALONE_LIBDIR = $(RUNTIME_LIBDIR)
 
-ifeq ($(ARCH), arm)
+ifeq ($(ARCH), aarch64)
 	CXX = aarch64-linux-gnu-g++
 	CC = aarch64-linux-gnu-gcc
-	RUNTIME_LIBDIR = ../../../../build-arm/libdash
+	RUNTIME_LIBDIR = ../../../build-arm/libdash
+else ifeq ($(ARCH), riscv64)
+	CXX = riscv64-linux-gnu-g++
+	CC = riscv64-linux-gnu-gcc
+	RUNTIME_LIBDIR = ../../../build_riscv/libdash
 endif
 
 DEFINES = #-DPRINT_IMAGES
+
+default: fft.so fft_nb.so
 
 all: serial.so serial.out fft.so fft.out 2Dconv.so 2Dconv.out zip.so zip.out gemm.out gemm.so
 
@@ -17,6 +23,8 @@ serial: serial.so serial.out
 nonblocking: fft_nb.so fft_nb.out
 
 fft: fft.so fft.out fft_nb.so fft_nb.out
+
+uint8: conv2D_uint8.so conv2D_uint8.out
 
 2Dconv: 2Dconv.so 2Dconv.out
 
@@ -54,11 +62,17 @@ gemm.so: track.cpp conv.cpp
 gemm.out: conv.cpp track.cpp
 	$(CC) -I $(INCLUDES) -L $(STANDALONE_LIBDIR) -DGEMM conv.cpp track.cpp -l:libdash.a -lstdc++ -lm -o track.out -g
 
-2Dconv.so: track.cpp conv.cpp
-	$(CXX) -shared -I $(INCLUDES) -shared -fPIC -DCONV track.cpp conv.cpp -o track.so
+conv2D_uint8.so: track.cpp conv.cpp
+	$(CXX) -shared -I $(INCLUDES) -shared -fPIC -DCONV track_2Dconv_uint8.cpp conv.cpp -o track.so
 
-2Dconv.out: conv.cpp track.cpp
-	$(CC) -I $(INCLUDES) -L $(STANDALONE_LIBDIR) -DCONV conv.cpp track.cpp -l:libdash.a -lstdc++ -lm -o track.out -g
+conv2D_uint8.out: track_2Dconv_uint8.cpp
+	$(CC) -I $(INCLUDES) -L $(STANDALONE_LIBDIR) -DCONV track_2Dconv_uint8.cpp -l:libdash.a -lstdc++ -lm -o track.out -g
+
+2Dconv.so:  track_2Dconv.cpp
+	$(CXX) -shared -I $(INCLUDES) -shared -fPIC -DCONV track_2Dconv.cpp -o track.so
+
+2Dconv.out: conv.cpp track_2Dconv.cpp
+	$(CC) -I $(INCLUDES) -L $(STANDALONE_LIBDIR) -DCONV conv.cpp track_2Dconv.cpp -l:libdash.a -lstdc++ -lm -o track.out -g
 
 clean:
 	-rm *.so

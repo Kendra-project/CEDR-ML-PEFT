@@ -2,12 +2,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.use('TkAgg')
+#matplotlib.use('TkAgg')
 import argparse
 
 def generate_argparser():
     parser = argparse.ArgumentParser(description="Plot a 3D plot from csv file")
     parser.add_argument("inputFile", help="Input CSV file to plot")
+    parser.add_argument("metric", help="hw for hardware sweep or ir for injection rate sweep")
     return parser
 
 if __name__ == '__main__':
@@ -16,21 +17,25 @@ if __name__ == '__main__':
 
     ### Configuration specification; Edit to specify which ###
     ### hardware configuration metrics are needed to be plotted###
-    CPUS = 3
-    FFTS = 8
+    CPUS = 2
+    FFTS = 3
     MMULTS = 0
 
-    schedlist = ['SIMPLE', 'MET', 'EFT', 'ETF'] #, 'HEFT_RT']
-    schednamelist = {'SIMPLE':'RR', 'MET':'MET', 'EFT':'EFT', 'ETF':'ETF', 'HEFT_RT':'HEFT$_\mathrm{RT}$'}
-    schedcolordict = {'SIMPLE':'b', 'MET': 'tab:orange', 'EFT':'g', 'ETF':'r', 'HEFT_RT':'tab:purple'}
-    schedmarkerdict = {'SIMPLE':'o', 'MET': 'v', 'EFT':'^', 'ETF':'s', 'HEFT_RT':'d'}
+    schedlist = ['EFT', 'ETF']#['MET', 'EFT', 'ETF']
+    #schednamelist = {'MET':'MET', 'EFT':'EFT', 'ETF':'ETF'}
+    schednamelist = {'EFT':'EFT', 'ETF':'ETF'}
+    #schedmarkerdict = {'EFT':'^', 'ETF':'s', 'MET':'v'}
+    schedmarkerdict = {'EFT':'^', 'ETF':'s'}
+    schedcolordict = {'EFT': 'green', 'ETF':'red', 'MET':'orange'}
+    schedcolordict = {'EFT': 'green', 'ETF':'red'}
     ##############################################################
-    hwconfig = CPUS+FFTS#'C'+str(CPUS)+'+F'+str(FFTS)+'+M'+str(MMULTS)  
+    hwconfig = 'C'+str(CPUS)+'+F'+str(FFTS)  
 
     df = pd.read_csv(args.inputFile, sep=',')
-    print(df)
-#    df = df.loc[df['Resource Pool'] == hwconfig]
-    df = df.loc[df['Injection Rate (Mbps)'] == 1000]
+    #if args.metric == "ir":
+    #df = df.loc[df['Resource Pool'] == hwconfig]
+    #elif args.metric == "hw":
+    df = df.loc[df['Injection Rate (Mbps)'] == 2]
 
     #metrics = ['Avg. cumulative execution time / app. (ns)', 'Avg. execution time / app.(ns)', 'Avg. Scheduling overhead / app.(ns)']
     metrics = ['Avg. cumulative execution time / app. (ns)', 'Avg. execution time / app.(ns)', 'Avg. Scheduling overhead / app.(ns)']
@@ -42,29 +47,42 @@ if __name__ == '__main__':
         for sched in schedlist:
             fdf = df.loc[df['Scheduler'] == sched]
             fdf = fdf.filter(items=['Resource Pool', 'Scheduler', 'Injection Rate (Mbps)', metric])
-            print(fdf)
 
             # Find the injection rates from CSV file
+            #if args.metric == "ir":
+            #    inj_rates = list(fdf['Injection Rate (Mbps)'])
+            #elif args.metric == "hw":
             inj_rates = list(fdf['Resource Pool'])
-            print(inj_rates)
 
             metric_vals = []
             for inj_rate in inj_rates:
-                #metric_vals.append(fdf.loc[fdf['Injection Rate (Mbps)'] == inj_rate][metric].values[0])
+                #if args.metric == "ir":
+                #    metric_vals.append(fdf.loc[fdf['Injection Rate (Mbps)'] == inj_rate][metric].values[0])
+                #elif args.metric == "hw":
                 metric_vals.append(fdf.loc[fdf['Resource Pool'] == inj_rate][metric].values[0])
 
-            metric_vals = [x/1000000 for x in metric_vals]  # Converting into ms
-            print('For scheduler ', sched, ', values are')
-            print(metric_vals)
+            metric_vals = [(x / 2000000) for x in metric_vals]  # Converting into ms
+            scale_value = metric_vals[0]
+            for x in metric_vals:
+                print(x)
+            print()
+            metric_vals = [(x / scale_value) for x in metric_vals]  # Converting into ms
+            for x in metric_vals:
+                print(x)
+            print()
 
             plt.plot(inj_rates, metric_vals, c=schedcolordict[sched])
             plt.scatter(inj_rates, metric_vals, c=schedcolordict[sched], s=100, marker=schedmarkerdict[sched], label=schednamelist[sched])
-        plt.xlabel('Resource Pool', fontsize=28, fontweight='bold')
-        plt.ylabel(metric_name, fontsize=28, fontweight='bold')
+
+        #if args.metric == "ir":
+        #    plt.xlabel('Injection Rate (Mbps)', fontsize=24, fontweight='bold')
+        #elif args.metric == "hw":
+        plt.xlabel('Resource Pool', fontsize=24, fontweight='bold')
+        plt.ylabel("Normalized Exec. Time", fontsize=24, fontweight='bold')
         plt.xticks(fontsize=24)
         #plt.xticks(hw_config_ticks, configlist_tick, fontsize=24)
         #plt.xticks(inj_rates)
-        plt.yticks(fontsize=24)
+        plt.yticks([1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3], fontsize=24)
         plt.grid()
         plt.legend(fontsize=24)
 

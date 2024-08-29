@@ -59,7 +59,7 @@ void *hardware_thread(void *ptr) {
   // std::cout << "Entering hardware thread while loop " << std::endl;
   while (true) {
     pthread_mutex_lock(thread_lock);
-    if ((!worker_thread->todo_task_dequeue.empty())) {
+    if ((!worker_thread->todo_task_dequeue.empty()) && (worker_thread->resource_state != 3)) {
       auto *task = worker_thread->todo_task_dequeue.front();
       worker_thread->todo_task_dequeue.pop_front();
       worker_thread->task = task;
@@ -200,7 +200,7 @@ void initializeCPUs(ConfigManager &cedr_config, pthread_t *resource_handle, work
 
   cpu_set_t scheduler_affinity;
   CPU_ZERO(&scheduler_affinity);
-  CPU_SET(0, &scheduler_affinity);
+  CPU_SET(processor_count-1, &scheduler_affinity);
 
   pthread_t current_thread = pthread_self();
   pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &scheduler_affinity);
@@ -213,12 +213,17 @@ void initializeCPUs(ConfigManager &cedr_config, pthread_t *resource_handle, work
     LOG_VERBOSE << "Setting resource affinity and scheduler policy for resource " << i;
     pthread_attr_init(&(resource_attr[i]));
     CPU_ZERO(&(resource_affinity[i]));
-    CPU_SET((i + 1) % processor_count, &(resource_affinity[i]));
+    //CPU_SET(processor_count - 1 - ((i + 1) % processor_count), &(resource_affinity[i])); // Core Based Assignment Setup
+    CPU_SET(processor_count - 1 - ((i%2 + 1)), &(resource_affinity[i]));   // Cores handle accelerator setup
     pthread_attr_setaffinity_np(&(resource_attr[i]), sizeof(cpu_set_t), &(resource_affinity[i]));
     pthread_attr_setinheritsched(&(resource_attr[i]), PTHREAD_EXPLICIT_SCHED);
     int ret;
     if (cedr_config.getLoosenThreadPermissions()) {
-      ret = pthread_attr_setschedpolicy(&(resource_attr[i]), SCHED_OTHER);
+      if (i >= 2) {
+        ret = pthread_attr_setschedpolicy(&(resource_attr[i]), SCHED_RR);
+      } else {
+        ret = pthread_attr_setschedpolicy(&(resource_attr[i]), SCHED_OTHER);
+      }
     } else {
       ret = pthread_attr_setschedpolicy(&(resource_attr[i]), SCHED_RR);
     }
@@ -227,6 +232,9 @@ void initializeCPUs(ConfigManager &cedr_config, pthread_t *resource_handle, work
       exit(1);
     }
     if (!cedr_config.getLoosenThreadPermissions()) {
+      p1[i].sched_priority = 99;
+      pthread_attr_setschedparam(&resource_attr[i], p1);
+    } else if (i >= 2) {
       p1[i].sched_priority = 99;
       pthread_attr_setschedparam(&resource_attr[i], p1);
     }
@@ -293,7 +301,9 @@ void initializeFFTs(ConfigManager &cedr_config, pthread_t *resource_handle, work
     LOG_DEBUG << "Initializing FFT " << i + 1;
     pthread_attr_init(&(resource_attr[i]));
     CPU_ZERO(&(resource_affinity[i]));
-    CPU_SET((processor_count - i - 2) % processor_count, &(resource_affinity[i]));
+    //CPU_SET((processor_count - i - 4) % processor_count, &(resource_affinity[i])); // Little CPU cores for FFT accelerator
+    CPU_SET(processor_count - 1 - ((i%2 + 1)), &(resource_affinity[i]));           // Cores handle accelerator setup
+    pthread_attr_setaffinity_np(&(resource_attr[i]), sizeof(cpu_set_t), &(resource_affinity[i]));
     pthread_attr_setaffinity_np(&(resource_attr[i]), sizeof(cpu_set_t), &(resource_affinity[i]));
     pthread_attr_setinheritsched(&(resource_attr[i]), PTHREAD_EXPLICIT_SCHED);
     int ret;

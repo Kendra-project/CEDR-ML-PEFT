@@ -36,11 +36,12 @@ static_assert(UDMABUF_PARTITION_SIZE >= REQUIRED_BUFFER_SIZE_FLT, "Current udmab
 #undef LOG
 #endif
 
-#ifdef __DASH_FFT_DEBUG__
+#if defined(__DASH_FFT_DEBUG__) && !defined(MEASURE_PERFORMANCE)
 #define LOG(...) printf(__VA_ARGS__)
 #else
 #define LOG(...)
 #endif
+
 
 //###################################################################################
 // Function to initialize memory maps to FFT

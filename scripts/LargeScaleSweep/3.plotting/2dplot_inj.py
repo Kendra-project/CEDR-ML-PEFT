@@ -20,12 +20,12 @@ if __name__ == '__main__':
     FFTS = 1
     MMULTS = 1
 
-    schedlist = ['SIMPLE', 'MET', 'EFT', 'ETF']#, 'HEFT_RT']
-    schednamelist = {'SIMPLE':'RR', 'MET':'MET', 'EFT':'EFT', 'ETF':'ETF'}#, 'HEFT_RT':'HEFT$_\mathrm{RT}$'}
-    schedcolordict = {'SIMPLE':'b', 'MET': 'tab:orange', 'EFT':'g', 'ETF':'r'}#, 'HEFT_RT':'tab:purple'}
-    schedmarkerdict = {'SIMPLE':'o', 'MET': 'v', 'EFT':'^', 'ETF':'s'}#, 'HEFT_RT':'d'}
+    schedlist = ['SIMPLE', 'MET', 'EFT', 'ETF', 'HEFT_RT']
+    schednamelist = {'SIMPLE':'RR', 'MET':'MET', 'EFT':'EFT', 'ETF':'ETF', 'HEFT_RT':'HEFT$_\mathrm{RT}$'}
+    schedcolordict = {'SIMPLE':'b', 'MET': 'tab:orange', 'EFT':'g', 'ETF':'r', 'HEFT_RT':'tab:purple'}
+    schedmarkerdict = {'SIMPLE':'o', 'MET': 'v', 'EFT':'^', 'ETF':'s', 'HEFT_RT':'d'}
     ##############################################################
-    hwconfig = 'C'+str(CPUS)+'+F'+str(FFTS)+'+M'+str(MMULTS)+'+Z0'
+    hwconfig = 'C'+str(CPUS)+'+F'+str(FFTS)+'+M'+str(MMULTS)  
 
     df = pd.read_csv(args.inputFile, sep=',')
     print(df)

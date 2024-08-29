@@ -4,6 +4,10 @@
 #include "channel_Eq_terminate.h"
 #include "channel_Eq_initialize.h"
 
+#ifdef EXPERIMENT
+#define printf(...)
+#endif
+
 static float pilot_data[32] = { -1, 1, 1, 1, 1, 1, 1, 1,
                                 -1, 1, 1, 1, 1, 1, 1, 1,
                                 -1, 1, 1, 1, 1, 1, 1, 1,
