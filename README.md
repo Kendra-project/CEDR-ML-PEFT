@@ -3,6 +3,11 @@
 [![Github CI](https://github.com/UA-RCL/CEDR/workflows/Compilation%20Checks/badge.svg)](https://github.com/UA-RCL/CEDR/actions?query=workflow%3A%22Compilation+Checks%22)
 <!--[![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/mackncheesiest/cedr_dev)](https://hub.docker.com/r/mackncheesiest/cedr_dev/builds)-->
 
+## FPGA Bitstream and Linux Image
+
+For the associate FGPA bitstream creation and Linux Image, refer to [Hardware-Images](https://github.com/UA-RCL/Hardware-Images/tree/riscv-1boom-2big-3little-2fft) GitHub repository.
+
+
 ## Publications
 
 See our list of publications on [the project website](https://ua-rcl.github.io/projects/cedr/)
