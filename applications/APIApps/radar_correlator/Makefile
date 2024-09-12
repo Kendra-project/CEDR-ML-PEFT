@@ -8,6 +8,15 @@ LIBS = -L $(LIBDASH_LIB)
 
 APP_NAME = radar_correlator
 
+ifeq ($(ARCH), aarch64)
+	CXX = aarch64-linux-gnu-g++
+	CC = aarch64-linux-gnu-gcc
+	RUNTIME_LIBDIR = ../../../build-arm/libdash
+
+
+
+endif
+
 non-api:
 	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) $(LIBS) $(APP_NAME)_non_api.c -l:libdash.a -lm -o $(APP_NAME)_non_api-$(ARCH).out
 

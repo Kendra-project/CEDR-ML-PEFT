@@ -87,7 +87,9 @@ int main(void)
     fp = fopen("./input/time_input.txt","r");
     if (fp == NULL) { printf("Unable to open time_input.txt!\n"); return 1; }
     for(i = 0; i < n_samples; i++) {
-        fscanf(fp, "%lf", &time[i]);
+        if(fscanf(fp, "%lf", &time[i]) <= 0){
+           time[i] = 0.0;        
+        }
     }
     fclose(fp);
     fp = NULL;
@@ -100,7 +102,10 @@ int main(void)
     fp = fopen("./input/received_input.txt","r");
     if (fp == NULL) { printf("Unable to open received_input.txt!\n"); return 1; }
     for(i = 0; i < len; i++) {
-        fscanf(fp,"%lf", &received[i]);
+    
+        if(fscanf(fp, "%lf", &received[i]) <= 0){
+           received[i] = 0.0;        
+        }
     }
     fclose(fp);
     fp = NULL;
