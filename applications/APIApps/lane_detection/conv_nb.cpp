@@ -41,7 +41,16 @@ void conv_zip(dash_re_flt_type *in, dash_re_flt_type *filter, dash_re_flt_type *
                     else temp_img_holder[index++] = 0;
                 }
             }
+            #if defined(GPU)
+            for(int row = 0; row < kernel_size; row++){
+                for(int col = 0; col < kernel_size; col+=2){
+                    temp_out_holder[row * width + col] = temp_img_holder[row * width + col] * filter[row * width + col] - temp_img_holder[row * width + col + 1] * filter[row * width + col + 1];
+                    temp_out_holder[row * width + col + 1] = temp_img_holder[row * width + col] * filter[row * width + col + 1] + temp_img_holder[row * width + col + 1] * filter[row * width + col];
+                }
+            }
+            #else
             DASH_ZIP_flt((dash_cmplx_flt_type *)temp_img_holder, (dash_cmplx_flt_type *)filter, (dash_cmplx_flt_type *)temp_out_holder, kernel_size * kernel_size, ZIP_MULT);
+            #endif
             dash_re_flt_type sum = 0;
             for(int s = 0; s < kernel_size * kernel_size; s++){
                 sum += temp_out_holder[s];
@@ -222,13 +231,16 @@ void conv_fft_conj(dash_re_flt_type *in, dash_re_flt_type *out, int height, int 
 // Multiplication of input and filter in frequency domain
 void conv_fft_mult(dash_re_flt_type *first_arr, dash_re_flt_type *second_arr, dash_re_flt_type *out, int height, int width){        
 // TODO: Use smaller ZIP sizes in non-blocking manner!   
-    DASH_ZIP_flt((dash_cmplx_flt_type *)first_arr,(dash_cmplx_flt_type *)second_arr,(dash_cmplx_flt_type *)out,height*width/2,ZIP_MULT);
-    /*for(int row = 0; row < height; row++){
+#if defined(GPU)
+    for(int row = 0; row < height; row++){
         for(int col = 0; col < width; col+=2){
             out[row * width + col] = first_arr[row * width + col] * second_arr[row * width + col] - first_arr[row * width + col + 1] * second_arr[row * width + col + 1];
             out[row * width + col + 1] = first_arr[row * width + col] * second_arr[row * width + col + 1] + first_arr[row * width + col + 1] * second_arr[row * width + col];
         }
-    }*/
+    }
+#else
+    DASH_ZIP_flt((dash_cmplx_flt_type *)first_arr,(dash_cmplx_flt_type *)second_arr,(dash_cmplx_flt_type *)out,height*width/2,ZIP_MULT);
+#endif
 }
 
 

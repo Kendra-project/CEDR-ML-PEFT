@@ -817,7 +817,7 @@ make -j $(nproc)
 Now, we can compile the lane detection application running the following commands. This creates an executable shared object that we will move to `build` folder along with input image to run the `lane_detection`:
 ```bash
 cd ../applications/APIApps/lane_detection/
-make fft_nb.so
+PLATFORM=GPU make fft_nb.so
 cp track_nb.so image.png ../../../build/
 ```
 

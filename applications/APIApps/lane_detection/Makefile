@@ -10,6 +10,10 @@ endif
 
 DEFINES = #-DPRINT_IMAGES
 
+ifeq ($(PLATFORM), GPU)
+	DEFINES += -DGPU
+endif
+
 all: serial.so serial.out fft.so fft.out 2Dconv.so 2Dconv.out zip.so zip.out gemm.out gemm.so
 
 serial: serial.so serial.out 
@@ -25,7 +29,7 @@ zip: zip.so zip.out
 gemm: gemm.out gemm.so
 
 fft_nb.so: track.cpp conv_nb.cpp
-	$(CXX) -shared -I $(INCLUDES) -shared -fPIC -DFFT track.cpp conv_nb.cpp -o track_nb.so
+	$(CXX) -shared -I $(INCLUDES) $(DEFINES) -shared -fPIC -DFFT track.cpp conv_nb.cpp -o track_nb.so
 
 fft_nb.out: conv_nb.cpp track.cpp
 	$(CC) -I $(INCLUDES) -L $(STANDALONE_LIBDIR) -DFFT $(DEFINES) conv_nb.cpp track.cpp -l:libdash.a -lstdc++ -lm -o track_nb.out -g
