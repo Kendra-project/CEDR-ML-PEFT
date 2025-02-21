@@ -119,6 +119,65 @@ void reset_dma(volatile unsigned int* base) {
 }
 
 //###################################################################################
+// Function to Write Data to ACC Control Register
+//###################################################################################
+void acc_write_reg(volatile unsigned int *base, unsigned int offset, unsigned int data) { 
+  *(base + offset) = data; 
+}
+
+volatile unsigned int* init_acc_reset(unsigned int ACC_GPIO_RESET_BASE_ADDR) {
+  int fd;
+  volatile unsigned int* virtual_addr;
+  if (ACC_GPIO_RESET_BASE_ADDR == 0x00000000) {
+    LOG("[acc] Trying to initialize ACC, but its base address is 0, I don't think one is available!\n");
+    exit(1);
+  }
+  LOG("[acc] Initializing ACC GPIO reset at control address 0x%x\n", ACC_GPIO_RESET_BASE_ADDR);
+  // Open device memory in order to get access to DMA control slave
+  fd = open("/dev/mem", O_RDWR | O_SYNC);
+  if (fd < 0) {
+    LOG("[acc] Can't open /dev/mem. Exiting ...\n");
+    exit(1);
+  }
+  // Obtain virtual address to DMA control slave through mmap
+  virtual_addr = (volatile unsigned int *)mmap(nullptr,
+                                            getpagesize(),
+                                            PROT_READ | PROT_WRITE,
+                                            MAP_SHARED,
+                                            fd,
+                                            ACC_GPIO_RESET_BASE_ADDR);
+  if (virtual_addr == MAP_FAILED) {
+    // TODO: does mmap set errno? might be nice to perror here
+    LOG("[acc] Can't obtain memory map to FFT control slave. Exiting ...\n");
+    exit(1);
+  }
+  close(fd);
+  return virtual_addr;
+}
+
+void reset_acc_and_dma(volatile unsigned int *base) {
+  // It's a single output GPIO, so make sure that it's set to output
+  // And then as it's active low, hold it low for a bit and then release (set back to 1)
+  // GPIO 1 => data at 0x0000, tri at 0x0004
+  // Note: technically we're writing to a different reg than is typically used with fft_write_reg
+  // But the functionality we need is exactly the same, so it's fine.
+  // Set the GPIO as write mode
+  acc_write_reg(base, 0x1, 0x0);
+  // Enable the reset
+  acc_write_reg(base, 0x0, 0x0);
+  // Delay a bit
+  volatile uint32_t dummy_var = 0;
+  while (dummy_var < 10) { dummy_var++; }
+  // Release the reset
+  acc_write_reg(base, 0x0, 0x1);
+}
+
+void close_acc_reset(volatile unsigned int *virtual_addr) {
+  munmap((unsigned int*) virtual_addr, getpagesize());
+}
+
+
+//###################################################################################
 // Function to initialize memory maps to DMA
 //###################################################################################
 volatile unsigned int* init_dma(unsigned int base_addr) {

@@ -10,10 +10,12 @@
 #define DASH_ZCU102_10FFT_2MMULT_2ZIP_HWSCHEDULER 4
 #define DASH_HPC 5
 #define DASH_ZCU102_2FFT_2MMULT_1ZIP_1CONV2D_HWSCHEDULER 6
+#define DASH_ZEDBOARD 7
 
 //#define DASH_PLATFORM DASH_ZCU102_2020_2
+#define DASH_PLATFORM DASH_ZEDBOARD
 //#define DASH_PLATFORM DASH_ZCU102_10FFT_2MMULT_2ZIP_HWSCHEDULER
-#define DASH_PLATFORM DASH_ZCU102_2FFT_2MMULT_1ZIP_1CONV2D_HWSCHEDULER
+//#define DASH_PLATFORM DASH_ZCU102_2FFT_2MMULT_1ZIP_1CONV2D_HWSCHEDULER
 //#define DASH_PLATFORM DASH_JETSONAGX
 #define GLOBAL_UDMABUF_SIZE 1048576
 
@@ -111,6 +113,24 @@
 #elif DASH_PLATFORM == DASH_VCU128
   #pragma message("=*=*= Building for VCU-128 =*=*=")
   #error "No accelerator control registers are defined for this platform!"
+#elif DASH_PLATFORM == DASH_ZEDBOARD
+  #pragma message("=*=*= Building for ZEDBOARD =*=*=")
+
+  #define FFT_UDMABUF_NUM  0
+  #define FFT_UDMABUF_SIZE GLOBAL_UDMABUF_SIZE
+  // If defined, we assume that we can configure the FFT IP through AXI GPIO
+  // Otherwise, we assume that an fft_axi_config IP is being used
+  #define FFT_CONFIG_VIA_GPIO
+  #define FFT_GPIO_CONFIG_DELAY 10
+  #define FFT_CONTROL_BASE_ADDRS    ((uint32_t[]) {0x40020000, 0x40040000})
+  #define FFT_DMA_CTRL_BASE_ADDRS   ((uint32_t[]) {0x41E20000, 0x41E30000})
+  #define FFT_GPIO_RESET_BASE_ADDRS ((uint32_t[]) {0x40030000, 0x40050000})
+
+  #define ZIP_UDMABUF_NUM 1
+  #define ZIP_UDMABUF_SIZE GLOBAL_UDMABUF_SIZE
+  #define ZIP_DMA_CTRL_BASE_ADDRS   ((uint32_t[]) {0x41E10000, 0x41E00000})
+  #define ZIP_CONTROL_BASE_ADDRS    ((uint32_t[]) {0x40000000, 0x40010000})
+  #define ZIP_RESET_BASE_ADDRS      ((uint32_t[]) {0x40060000, 0x40070000})
 #elif DASH_PLATFORM == DASH_HTG960
   #pragma message("=*=*= Building for HTG-960 =*=*=")
   #error "No accelerator control registers are defined for this platform!"

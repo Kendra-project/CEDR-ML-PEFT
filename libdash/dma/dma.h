@@ -38,6 +38,11 @@
 void dma_write_reg(volatile unsigned int *base, unsigned int offset, unsigned int data);
 
 //###################################################################################
+// Function to Write Data to ACC Control Register
+//###################################################################################
+void acc_write_reg(volatile unsigned int *base, unsigned int offset, unsigned int data);
+
+//###################################################################################
 // Function to Initiate Transfer of Matrix over DMA
 //###################################################################################
 void setup_tx(volatile unsigned int *dma_config_addr, unsigned int source_addr, unsigned int num_bytes);
@@ -71,6 +76,19 @@ void dma_wait_for_rx_complete(volatile unsigned int *base);
 // Function to reset DMA
 //###################################################################################
 void reset_dma(volatile unsigned int *base);
+
+//###################################################################################
+// Function to initialize ACC and DMA resets
+//###################################################################################
+volatile unsigned int* init_acc_reset(unsigned int ACC_GPIO_RESET_BASE_ADDR);
+
+//###################################################################################
+// Function to reset ACC and DMA
+//###################################################################################
+void reset_acc_and_dma(volatile unsigned int *base);
+
+void close_acc_reset(volatile unsigned int *virtual_addr);
+
 
 //###################################################################################
 // Function to initialize memory maps to DMA

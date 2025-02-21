@@ -20,7 +20,7 @@ if [[ ${#missing_binaries[@]} -gt 0 ]] ; then
     echo "You are missing some tools this script requires: ${missing_binaries[@]}"
     echo "I'm going to install them now..."
     apt update
-    DEBIAN_FRONTEND=noninteractive apt install -y lsb-release wget software-properties-common
+    apt install -y lsb-release wget software-properties-common
 fi
 
 DISTRO=$(lsb_release -is)
@@ -57,14 +57,14 @@ install_apt_development_dependencies() {
   echo "Using GCC version: ${GCC_VERSION}"
 
   apt update
-  DEBIAN_FRONTEND=noninteractive \
-    apt install -y \
+  apt install -y \
     apt-transport-https \
     gnupg2 \
     curl \
     unzip \
     build-essential \
     libpapi-dev \
+    libpfm4-dev \
     tar \
     vim \
     gdb \
@@ -72,6 +72,9 @@ install_apt_development_dependencies() {
     g++-${GCC_VERSION} \
     g++-${GCC_VERSION}-aarch64-linux-gnu \
     gcc-${GCC_VERSION}-arm-linux-gnueabi \
+    g++-${GCC_VERSION}-arm-linux-gnueabi \
+    gcc-${GCC_VERSION}-arm-linux-gnueabihf \
+    g++-${GCC_VERSION}-arm-linux-gnueabihf \
     libstdc++6-${GCC_VERSION}-dbg-arm64-cross \
     zlib1g-dev \
     python3-tk \
@@ -87,12 +90,12 @@ install_updated_cmake() {
   chmod 644 /etc/apt/trusted.gpg.d/kitware.gpg
   apt-add-repository "deb https://apt.kitware.com/ubuntu/ ${DIST_CODENAME} main"
   apt update
-  DEBIAN_FRONTEND=noninteractive apt install -y cmake
+  apt install -y cmake
 }
 
 install_libgsl() {
   echo "Installing libgsl-dev"
-  DEBIAN_FRONTEND=noninteractive apt install -y libgsl-dev libgsl${GSL_VERSION} libgslcblas0
+  apt install -y libgsl-dev libgsl${GSL_VERSION} libgslcblas0
 }
 
 install_apt_development_dependencies
