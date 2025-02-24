@@ -2,7 +2,7 @@
 SET(CMAKE_SYSTEM_NAME Linux)
 SET(CMAKE_SYSTEM_PROCESSOR arm)
 SET(CMAKE_C_COMPILER /usr/bin/arm-linux-gnueabihf-gcc)
-SET(CMAKE_CXX_COMPILER /usr/bin/arm-linux-gnueabihf-g++-10)
+SET(CMAKE_CXX_COMPILER /usr/bin/arm-linux-gnueabihf-g++)
 SET(CMAKE_AR /usr/bin/arm-linux-gnueabihf-ar)
 SET(CMAKE_RANLIB /usr/bin/arm-linux-gnueabihf-ranlib)
 SET(CMAKE_ADDR2LINE /usr/bin/arm-linux-gnueabihf-addr2line)

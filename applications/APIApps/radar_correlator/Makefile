@@ -15,12 +15,11 @@ ifeq ($(ARCH), aarch64)
 endif
 
 ifeq ($(ARCH), arm32)
-        CXX = /usr/bin/arm-linux-gnueabihf-g++-10
-        CC = /usr/bin/arm-linux-gnueabihf-gcc-10
+        CXX = /usr/bin/arm-linux-gnueabihf-g++
+        CC = /usr/bin/arm-linux-gnueabihf-gcc
         RUNTIME_LIBDIR = ../../../build-arm32/libdash
+		LIBS = -L $(RUNTIME_LIBDIR)
 endif
-
-LIBS = -L $(RUNTIME_LIBDIR)
 
 non-api:
 	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) $(LIBS) $(APP_NAME)_non_api.c -l:libdash.a -lm -o $(APP_NAME)_non_api-$(ARCH).out
