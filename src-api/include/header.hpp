@@ -71,6 +71,7 @@ struct task_node_t {
   cedr_barrier_t *kernel_barrier;
   struct struct_app *app_pnt;   // points to parent app
   bool supported_resources[(uint8_t) resource_type::NUM_RESOURCE_TYPES] = {};
+  unsigned long long task_sched_time;
   struct timespec start, end;
   pthread_t parent_app_pthread;
   void *actual_run_func;
@@ -163,6 +164,8 @@ typedef struct struct_pthread_arg pthread_arg;
 struct struct_logging {
   char app_name[50];
   int app_id;
+  unsigned long long app_start_time;
+  unsigned long long task_sched_time;
   int task_id;
   char task_name[50];
   char assign_resource_name[25];

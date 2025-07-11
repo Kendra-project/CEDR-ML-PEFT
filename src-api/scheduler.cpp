@@ -41,15 +41,14 @@ bool attemptToAssignTaskToPE(ConfigManager &cedr_config, task_nodes *task, worke
   task->assigned_resource_name = thread_handle->resource_name;
   task->actual_run_func = task->run_funcs[(uint8_t) thread_handle->thread_resource_type];
 
-  if (cedr_config.getScheduler() == "EFT" || cedr_config.getScheduler() == "ETF" || cedr_config.getScheduler() == "HEFT_RT") {
-    struct timespec curr_timespec {};
-    clock_gettime(CLOCK_MONOTONIC_RAW, &curr_timespec);
-    long long curr_time = curr_timespec.tv_nsec + curr_timespec.tv_sec * SEC2NANOSEC;
-    const long long task_exec_ns = cedr_config.getDashExecTime(task->task_type, thread_handle->thread_resource_type);
-    const auto avail_time = thread_handle->thread_avail_time;
-    thread_handle->thread_avail_time = (curr_time >= avail_time) ? curr_time + task_exec_ns : avail_time + task_exec_ns;
-  }
-
+  struct timespec curr_timespec {};
+  clock_gettime(CLOCK_MONOTONIC_RAW, &curr_timespec);
+  long long curr_time = curr_timespec.tv_nsec + curr_timespec.tv_sec * SEC2NANOSEC;
+  task->task_sched_time = curr_time;
+  const long long task_exec_ns = cedr_config.getDashExecTime(task->task_type, thread_handle->thread_resource_type);
+  const auto avail_time = thread_handle->thread_avail_time;
+  thread_handle->thread_avail_time = (curr_time >= avail_time) ? curr_time + task_exec_ns : avail_time + task_exec_ns;
+  
   // Queuing vs. Non-queuing
   pthread_mutex_lock(resource_mutex);
   thread_handle->todo_task_dequeue.push_back(task);

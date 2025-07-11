@@ -509,6 +509,8 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
         strcpy(log_obj.app_name, task->app_pnt->app_name);
         log_obj.task_id = task->task_id;
         log_obj.app_id = task->app_pnt->app_id;
+        log_obj.app_start_time = task->app_pnt->start_time;
+        log_obj.task_sched_time = task->task_sched_time;
         strcpy(log_obj.task_name, task->task_name.c_str());
         strcpy(log_obj.assign_resource_name, task->assigned_resource_name.c_str());
         log_obj.start = task->start;
@@ -603,8 +605,8 @@ void launchDaemonRuntime(ConfigManager &cedr_config, pthread_t *resource_handle,
         fprintf(trace_fp,
                 "app_id: %d, app_name: %s, task_id: %d, task_name: %s, "
                 "resource_name: %s, ref_start_time: %lld, ref_stop_time: %lld, "
-                "actual_exe_time: %lld\n",
-                task.app_id, task.app_name, task.task_id, task.task_name, task.assign_resource_name, s0, e0, e0 - s0);
+                "actual_exe_time: %lld, task_app_start_time:%lld, task_sched_time:%lld\n",
+                task.app_id, task.app_name, task.task_id, task.task_name, task.assign_resource_name, s0, e0, e0 - s0, task.app_start_time, task.task_sched_time);
 
         it = stream_timing_log.erase(it);
       }
