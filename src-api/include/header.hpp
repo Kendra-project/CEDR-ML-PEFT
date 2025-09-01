@@ -45,13 +45,12 @@ static const std::map<std::string, precision_types> precision_types_map =
                                                               {{precision_type_names[precision_types::prec_flt], precision_types::prec_flt},
                                                                {precision_type_names[precision_types::prec_int], precision_types::prec_int}};
 
-enum resource_type { cpu = 0, fft = 1, mmult = 2, gpu = 3, NUM_RESOURCE_TYPES = 4 };
+enum resource_type { cpu = 0, mmult = 1, gpu = 2, NUM_RESOURCE_TYPES = 3 };
 // https://stackoverflow.com/a/9150607
-static const char *resource_type_names[] = {"cpu", "fft", "gemm", "gpu"};
+static const char *resource_type_names[] = {"cpu", "gemm", "gpu"};
 static_assert(sizeof(resource_type_names) / sizeof(char *) == resource_type::NUM_RESOURCE_TYPES, "Resource type enum is missing a string representation or enum is missing a value");
 
 static const std::map<std::string, resource_type> resource_type_map = {{resource_type_names[(uint8_t) resource_type::cpu], resource_type::cpu},
-                                                                       {resource_type_names[(uint8_t) resource_type::fft], resource_type::fft},
                                                                        {resource_type_names[(uint8_t) resource_type::mmult], resource_type::mmult},
                                                                        {resource_type_names[(uint8_t) resource_type::gpu], resource_type::gpu}};
 
