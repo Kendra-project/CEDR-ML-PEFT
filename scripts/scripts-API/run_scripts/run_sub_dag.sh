@@ -9,7 +9,7 @@ declare -a ZIPS=0
 declare -a GPUS=0
 ######################################################################
 
-APPS=("./radar_correlator_fft-x86.so")
+APPS=("./radar_correlator_api-x86.so")
 INSTS=("5")
 
 declare -a PERIODS=("1734" "2313")
