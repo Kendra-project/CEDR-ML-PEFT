@@ -15,13 +15,13 @@ Install Docker based on the host machine platform using the [link](https://docs.
 Pull the latest [Docker container](https://hub.docker.com/r/uofarcl/cedr/tags) with all dependencies installed. 
 Open a terminal in your CEDR folder and run the Docker image using the following command: 
 ```
-docker run -it --name cedr_tutorial uofarcl/cedr:tutorial_ece506 /bin/bash
+docker run -it --name cedr_tutorial uofarcl/cedr:ece506 /bin/bash
 ```
 
 We will need to copy files from the container to the host machine. Use one of these alternatives for this: 
   * Mount a volume while running Docker using a folder on the host machine that has read and write permissions for `other` users: 
 ```bash
-docker run -it --name cedr_tutorial -v <host-folder>:/root/repository/share uofarcl/cedr:tutorial_ece506 /bin/bash
+docker run -it --name cedr_tutorial -v <host-folder>:/root/repository/share uofarcl/cedr:ece506 /bin/bash
 ```
   * Using `docker cp` to copy files from the container to the host: 
 ```bash
