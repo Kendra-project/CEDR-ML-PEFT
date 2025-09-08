@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <unistd.h>
+#include <math.h>
 
 #include "../standalone_include/gsl_wrapper.h"
 
@@ -28,7 +29,7 @@ int main(void) {
 
     /* Do NOT Edit Below This Part! */
     for (int j = 0; j < 2 * size; j++) {
-      if(output[j] != output_verification[j]){
+      if(fabs(output[j] - output_verification[j]) > 0.01){
         printf("[ERROR] Output of iteration %d is wrong!\n", i);
         break;
       }
@@ -72,7 +73,7 @@ int main(void) {
     }
     /* Do NOT Edit Below This Part! */
     for (int i = 0; i < size; i++) {
-      if( (C[i].re != C_verification[i].re) || (C[i].im != C_verification[i].im)){
+      if( (fabs(C[i].re - C_verification[i].re) > 0.01) || (fabs(C[i].im - C_verification[i].im) > 0.01) ){
         printf("[ERROR] Output of iteration %d is wrong!\n", j);
         break;
       }

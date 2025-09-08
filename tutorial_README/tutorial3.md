@@ -23,7 +23,7 @@ If not already there, copy both applications and their input folders to the `bui
 
 ```bash
 # Assuming you are in the `build` folder
-cp -r ../applications/radar_correlator/{radar_correlatorr_api-x86.so,input} ../applications/pulse_doppler/{pulse_doppler_api-x86.so,input} ./
+cp -r ../applications/radar_correlator/{radar_correlator_api-x86.so,input} ../applications/pulse_doppler/{pulse_doppler_api-x86.so,input} ./
 ```
 
 ### 1.1.1. Running Multiple Instances of a Single Application
@@ -308,7 +308,7 @@ Once everything is completed, we will terminate CEDR with `kill_daemon`.
 CEDR comes with some scripts that make design-space exploration (DSE) rapid and easy. Now, we will go over the flow and define how to perform DSE step by step. First, navigate to the folder where we accommodate API based CEDR scripts from [root directory](/).
 
 ```bash
-cd scripts/scripts-API/run_scripts
+cd ../scripts/scripts-API/run_scripts
 ```
 
 We will initially run [daemon_generator.py](/scripts/scripts-API/run_scripts/daemon_generator.py) file to generate `daemon_config.json` files for our sweeps. We can modify the following code portion to denote scheduler types and hardware compositions. We set schedulers to `SIMPLE, ETF, and MET`, and for hardware compositions that will be swept, we select 4 CPUs at maximum, as the x86 system does not have any accelerators. If there were an accelerator, we would also set the maximum number of accelerators we would like to sweep up to. 
@@ -382,7 +382,7 @@ rm -rf log_dir/*
 First, execute `run_cedr.sh` to run CEDR with the DSE configurations in the first terminal. Then, open a new terminal and run `run_sub_dag.sh` to dynamically submit applications based on workload composition. If you are in a Docker environment, execute the first commands on a separate terminal to be able to pull up a second terminal running on the same Docker container.
 
 ```bash
-docker ps
+docker ps -a
 # Take note of the number below the "CONTAINER ID" column
 docker exec -it <CONTAINER ID> /bin/bash
 ```
@@ -432,6 +432,7 @@ corelist = [' cpu1', ' cpu2', ' cpu3']  # Edit here
 To learn about the input arguments of `makedataframe.py`, execute the script with the `-h` option. Then, execute the `makedataframe.py` script using the given arguments below for the DSE experiment in this tutorial. Other DSE experiments may require a different set of input arguments. 
 
 ```bash
+cd ../scripts/scripts-API/
 python3 makedataframe.py -h
 python3 makedataframe.py -i ../../build/log_dir/ -w HIGH -o dataframe.csv -t 2 -r 2
 ```

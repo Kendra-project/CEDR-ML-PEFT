@@ -26,7 +26,7 @@ NB_SOURCES = SAR_nb.cpp
 NB_SOURCES_STATIC_INPUT = SAR_nb_static_input.cpp
 
 non-api: $(APP_NAME)_non_api.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(LIBS) $(APP_NAME)_non_api.cpp -lm -lgsl -o $(APP_NAME)_non_api-$(ARCH).out
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(LIBS) $(APP_NAME)_non_api.cpp -lm -lgsl -lgslcblas -o $(APP_NAME)_non_api-$(ARCH).out
 
 api: $(APP_NAME)_api.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -shared -fPIC $(APP_NAME)_api.cpp -o $(APP_NAME)_api-$(ARCH).so

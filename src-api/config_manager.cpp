@@ -6,12 +6,10 @@ ConfigManager::ConfigManager() {
   // Populate the config with all of our "default" configuration options
 #if defined(__aarch64__)
   resource_array[(uint8_t) resource_type::cpu] = 3;
-  resource_array[(uint8_t) resource_type::fft] = 1;
   resource_array[(uint8_t) resource_type::mmult] = 1;
   resource_array[(uint8_t) resource_type::gpu] = 0;
 #else
   resource_array[(uint8_t) resource_type::cpu] = 3;
-  resource_array[(uint8_t) resource_type::fft] = 0;
   resource_array[(uint8_t) resource_type::mmult] = 0;
   resource_array[(uint8_t) resource_type::gpu] = 0;
 #endif

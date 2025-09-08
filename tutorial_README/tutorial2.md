@@ -7,8 +7,8 @@ Table of Contents:
       * [Build sample application for the FPGA](#112-application-cross-compilation)
    2. [Access the FPGA hardware and testing CEDR on the FPGA using CPUs only](#12-running-cedr-on-aup-zu3)
 2. [Add a new FFT accelerator to CEDR](#2-fft-acceleretor-integration)
-   1. [Rebuild CEDR with the updated configuration](#21-building-cedr-with-zip)
-   2. [Test the FFT accelerator with CEDR](#22-testing-zip-on-aup-zu3)
+   1. [Rebuild CEDR with the updated configuration](#21-building-cedr-with-fft)
+   2. [Test the FFT accelerator with CEDR](#22-testing-fft-on-aup-zu3)
       * [Validate execution using Gantt charts](#221-gantts-from-aup-zu3-experiments)
 
 ## 1. Hardware Information
@@ -142,7 +142,7 @@ We can see that all FFT and ZIP APIs are only using CPUs (`cpu1`, `cpu2`, and `c
 
 Update the CEDR header file ([src-api/include/header.hpp](/src-api/include/header.hpp)) to include fft as a resource by updating the following lines:
 
-```
+<pre>
 enum resource_type { cpu = 0, mmult = 1, gpu = 2, <b>fft = 3, NUM_RESOURCE_TYPES = 4 </b>};
 static const char *resource_type_names[] = {"cpu", "gemm", "gpu"<b>, "fft"</b>};
 static const std::map<std::string, resource_type> resource_type_map = {
@@ -150,7 +150,7 @@ static const std::map<std::string, resource_type> resource_type_map = {
  {resource_type_names[(uint8_t) resource_type::mmult], resource_type::mmult},
  {resource_type_names[(uint8_t) resource_type::gpu], resource_type::gpu}<b>,
  {resource_type_names[(uint8_t) resource_type::fft], resource_type::fft}</b>};
-```
+</pre>
 
 These lines make sure the functions with `_fft` suffix are grabbed when CEDR starts and used when schedulers assign tasks to the FFT accelerator.
 
@@ -178,7 +178,7 @@ We also need to ensure that `CMakeLists.txt` in the `libdash` folder searches fo
  set(ALL_LIBDASH_MODULES GEMM GPU FFT)
 ```
 
-### 2.1. Building CEDR with ZIP
+### 2.1. Building CEDR with FFT
 
 [Return to top](#class-tutorial-2-fpga-integration-and-accelerator-testing)
 
@@ -196,11 +196,11 @@ Now, verify the functions with the `_fft` suffix that are used for the FFT accel
 nm -D libdash-rt/libdash-rt.so | grep -E '*_fft$'
 ```
 
-```
+<pre>
 000065c5 T <b>DASH_FFT_flt_fft</b>
-```
+</pre>
 
-### 2.2. Testing ZIP on AUP-ZU3
+### 2.2. Testing FFT on AUP-ZU3
 
 [Return to top](#class-tutorial-2-fpga-integration-and-accelerator-testing)
 
@@ -253,6 +253,8 @@ scp -r petalinux@<aup-zu3-IP>:/home/petalinux/ece506_<group-id>/build-arm/log_di
 # If needed, copy the logs to the Docker container to run the Python scripts!
 
 # Assuming you are in the `build-arm` folder
-python3 ../scripts/gantt_k-nk.py ../log_dir/experiment0/timing_trace.log
-python3 ../scripts/gantt_k-nk.py ../log_dir/experiment1/timing_trace.log
+python3 ../scripts/gantt_k-nk.py arm-logs/experiment0/timing_trace.log
+cp gantt.png gantt_cpu.png
+python3 ../scripts/gantt_k-nk.py arm-logs/experiment1/timing_trace.log
+cp gantt.png gantt_fft.png
 ```

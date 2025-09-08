@@ -50,10 +50,9 @@ make api
 
 This will also create the sample application shared object to be used with CEDR.
 
-Copy the shared object and any input data files to the CEDR build folder
+Copy the shared object to the CEDR build folder
 ```bash
 cp api_example_api-x86.so ../../build
-cp -r input/ ../../build
 ```
 
 ### 1.1. CPU-based Preliminary Validation of the API Based Code
@@ -85,14 +84,13 @@ Observe the contents of the `daemon_config.json`
 
 Modify the `daemon_config.json` file to set the number of CPUs to 3 (or any other number).
 
-```
+<pre>
 "Worker Threads": {
  "cpu": <b>3</b>,
- "fft": 0,
  "gemm": 0,
  "gpu": 0
 },
-```
+</pre>
 
 Run CEDR using the config file. <u>Read the next lines before running!</u>
 ```bash
@@ -203,9 +201,9 @@ We also implement two additional functions that contain the implementation of CP
 1. DASH_ZIP_flt_cpu: `dash_cmplx_flt_type`
 2. DASH_ZIP_int_cpu: `dash_cmplx_int_type`
 
-Having included API implementation, we should introduce the new API call to the system by updating the CEDR header file ([./src-api/include/header.hpp](/src-api/include/header.hpp)):
+Having included API implementation, we should introduce the new API call to the system by updating the CEDR header file ([../src-api/include/header.hpp](/src-api/include/header.hpp)):
 
-```
+<pre>
 enum api_types {DASH_FFT = 0, DASH_GEMM = 1, DASH_FIR = 2, DASH_SpectralOpening = 3, DASH_CIC = 4, DASH_BPSK = 5, DASH_QAM16 = 6, DASH_CONV_2D = 7, DASH_CONV_1D = 8, <b>DASH_ZIP = 9,</b> NUM_API_TYPES = <b>10</b>};
 
 static const char *api_type_names[] = {"DASH_FFT", "DASH_GEMM", "DASH_FIR", "DASH_SpectralOpening", "DASH_CIC", "DASH_BPSK", "DASH_QAM16", "DASH_CONV_2D", "DASH_CONV_1D"<b>, "DASH_ZIP"</b>};
@@ -220,7 +218,7 @@ static const std::map<std::string, api_types> api_types_map = { {api_type_names[
  {api_type_names[api_types::DASH_CONV_2D], api_types::DASH_CONV_2D},
  {api_type_names[api_types::DASH_CONV_1D], api_types::DASH_CONV_1D},
  <b>{api_type_names[api_types::DASH_ZIP], api_types::DASH_ZIP}</b>};
-```
+</pre>
 
 ### Building CEDR with ZIP API
 
@@ -249,7 +247,7 @@ Change the `api_example_api.cpp` to include `DASH_ZIP` calls
 <  C[i].re = A[i].re * B[i].re - A[i].im * B[i].im;
 <  C[i].im = A[i].re * B[i].im + A[i].im * B[i].re;
 <}
->DASH_ZIP_flt(A, B, C, len, ZIP_MULT);
+>DASH_ZIP_flt(A, B, C, size, ZIP_MULT);
 ```
 
 Build sample applications with ZIP API calls, standalone as well as the shared object, and compare the output against other versions
@@ -284,6 +282,6 @@ cat log_dir/experiment1/timing_trace.log | grep -E '*ZIP*'
 We can generate a Gantt chart showing the distribution of tasks to the processing elements. Navigate the `scripts/` folder from the [root directory](/) and run the `gantt_k-nk.py` script.
 
 ```bash
-cd scripts/
-python3 gantt_k-nk.py ../build/log_dir/experiment0/timing_trace.log
+cd ../scripts/
+python3 gantt_k-nk.py ../build/log_dir/experiment1/timing_trace.log
 ```

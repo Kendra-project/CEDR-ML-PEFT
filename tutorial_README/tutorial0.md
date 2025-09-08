@@ -18,6 +18,8 @@ Open a terminal in your CEDR folder and run the Docker image using the following
 docker run -it --name cedr_tutorial uofarcl/cedr:ece506 /bin/bash
 ```
 
+***After runing the Docker container you can move to [Building CEDR for x86](#building-cedr-for-x86). Following few lines shows simple `docker` comments that would be useful for the following tutorials.***
+
 We will need to copy files from the container to the host machine. Use one of these alternatives for this: 
   * Mount a volume while running Docker using a folder on the host machine that has read and write permissions for `other` users: 
 ```bash
@@ -25,7 +27,7 @@ docker run -it --name cedr_tutorial -v <host-folder>:/root/repository/share uofa
 ```
   * Using `docker cp` to copy files from the container to the host: 
 ```bash
-docker ps # Find the Container ID and Name
+docker ps -a # Find the Container ID and Name
 docker cp cedr_tutorial:/root/repository/CEDR ./
 ```
   * If you need to detach from Docker at any time, you can use `Crtl+p` and `Ctrl+q` to detach and to re-attach use: 

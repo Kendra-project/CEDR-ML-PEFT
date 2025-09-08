@@ -34,7 +34,7 @@ SOURCES_NB = $(C_SOURCES) $(CPP_SOURCES_NB)
 SOURCES_NB_STATIC_INPUT = $(C_SOURCES) $(CPP_SOURCES_NB_STATIC_INPUT)
 
 non-api: ../src/$(APP_NAME)_non_api.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(LIBS) $(C_SOURCES) ../src/$(APP_NAME)_non_api.cpp -lm -lgsl -o $(APP_NAME)_non_api-$(ARCH).out
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(LIBS) $(C_SOURCES) ../src/$(APP_NAME)_non_api.cpp -lm -lgsl -lgslcblas -o $(APP_NAME)_non_api-$(ARCH).out
 
 api: ../src/$(APP_NAME)_api.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -shared -fPIC $(C_SOURCES) ../src/$(APP_NAME)_api.cpp -o $(APP_NAME)_api-$(ARCH).so

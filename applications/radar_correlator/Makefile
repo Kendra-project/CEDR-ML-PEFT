@@ -23,7 +23,7 @@ ifeq ($(ARCH), arm32)
 endif
 
 non-api: $(APP_NAME)_non_api.c
-	$(CC) $(CFLAGS) $(INCLUDES) $(LIBS) $(APP_NAME)_non_api.c -lm -lgsl -o $(APP_NAME)_non_api-$(ARCH).out
+	$(CC) $(CFLAGS) $(INCLUDES) $(LIBS) $(APP_NAME)_non_api.c -lm -lgsl -lgslcblas -o $(APP_NAME)_non_api-$(ARCH).out
 
 api: $(APP_NAME)_api.c
 	$(CC) $(CFLAGS) $(INCLUDES) -shared -fPIC $(APP_NAME)_api.c -o $(APP_NAME)_api-$(ARCH).so

@@ -24,7 +24,7 @@ APP_NAME = api_example
 SOURCES = api_example.cpp
 
 non-api: $(APP_NAME)_non_api.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(LIBS) $(APP_NAME)_non_api.cpp -lm -lgsl -o $(APP_NAME)_non_api-$(ARCH).out
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(LIBS) $(APP_NAME)_non_api.cpp -lm -lgsl -lgslcblas -o $(APP_NAME)_non_api-$(ARCH).out
 
 api: $(APP_NAME)_api.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -shared -fPIC $(APP_NAME)_api.cpp -o $(APP_NAME)_api-$(ARCH).so

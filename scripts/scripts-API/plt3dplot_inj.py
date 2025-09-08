@@ -164,5 +164,5 @@ if __name__ == "__main__":
     plt.rc('axes', labelsize=50)
     #plt.legend(fontsize=20, ncol=5, loc='upper center')
     ax.legend(markerscale=3, fontsize=20, ncol=5, loc='upper center')
-    plt.show()
-    plt.savefig("dse_sched.png",dpi=1200)
+    #plt.show()
+    plt.savefig("dse_" + metricSelect + ".png",dpi=1200)

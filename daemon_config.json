@@ -2,7 +2,7 @@
     "Worker Threads": {
         "cpu": 3,
         "gemm": 0,
-	    "gpu": 0
+        "gpu": 0
     },
 
     "Features": {
