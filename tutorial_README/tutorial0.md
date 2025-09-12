@@ -53,7 +53,7 @@ sudo apt-get install git-all
 Clone CEDR from GitHub using one of the following methods:
   * Clone with ssh:
 ```bash
-git clone -b tutorial git@github.com:UA-RCL/CEDR.git
+git clone -b ece506 git@github.com:UA-RCL/CEDR.git
 ```
   * Clone with https:
 ```bash

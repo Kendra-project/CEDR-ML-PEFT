@@ -208,7 +208,7 @@ enum api_types {DASH_FFT = 0, DASH_GEMM = 1, DASH_FIR = 2, DASH_SpectralOpening 
 
 static const char *api_type_names[] = {"DASH_FFT", "DASH_GEMM", "DASH_FIR", "DASH_SpectralOpening", "DASH_CIC", "DASH_BPSK", "DASH_QAM16", "DASH_CONV_2D", "DASH_CONV_1D"<b>, "DASH_ZIP"</b>};
 ...
-static const std::map<std::string, api_types> api_types_map = { {api_type_names[api_types::DASH_FFT], api_types::DASH_FFT},
+static const std::map&lt;std::string, api_types&gt; api_types_map = { {api_type_names[api_types::DASH_FFT], api_types::DASH_FFT},
  {api_type_names[api_types::DASH_GEMM], api_types::DASH_GEMM},
  {api_type_names[api_types::DASH_FIR], api_types::DASH_FIR},
  {api_type_names[api_types::DASH_SpectralOpening], api_types::DASH_SpectralOpening},

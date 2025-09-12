@@ -36,6 +36,7 @@ case "${DIST_VERSION}" in
   Ubuntu_18.04 ) GCC_VERSION=7; GSL_VERSION=23 ;;
   Ubuntu_20.04 ) GCC_VERSION=10; GSL_VERSION=23 ;;
   Ubuntu_22.04 ) GCC_VERSION=11; GSL_VERSION=27 ;;
+  Ubuntu_24.04 ) GCC_VERSION=13; GSL_VERSION=27 ;;
   * )
     echo "[WARNING] - this installation script has not been tested with this particular distro/version (${DIST_VERSION})"
     # https://stackoverflow.com/a/1885534
