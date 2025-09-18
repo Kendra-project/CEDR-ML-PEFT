@@ -118,9 +118,9 @@ make  # Builds the main shared object for CEDR API-based profiling (FFT-API base
 # Other CEDR-based options:
 #   make zip      # Builds radar_correlator that uses both ZIP and FFT API calls
 #   make noapi    # Builds FFT-based radar correlator without API calls
-cp radar_correlator-x86.so ../../build/
-cp -r input/ ../../build/
-cd ../../build
+cp radar_correlator-x86.so ../../../build/
+cp -r input/ ../../../build/
+cd ../../../build
 ```
 
 ### Step 4.4: Run CEDR and Submit the Application
