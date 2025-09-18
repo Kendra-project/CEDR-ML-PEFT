@@ -67,7 +67,7 @@ For **detailed CEDR run/config instructions** (platform and scheduler configurat
 
 ## 4) Build and Run Example Application with CEDR + HOPPERFISH (x86)
 
-### Step 1: Build CEDR for x86
+### Step 4.1: Build CEDR for x86
 
 ```bash
 # From the repository root
@@ -77,7 +77,7 @@ cmake -DUsePERF=ON ..
 make -j $(nproc)
 ```
 
-### Step 2: Configure the CEDR Daemon
+### Step 4.2: Configure the CEDR Daemon
 
 Copy the default config and edit as needed:
 
@@ -110,7 +110,7 @@ For example, edit `daemon_config.json` to set 3 CPUs and enable kill when idle:
 }
 ```
 
-### Step 3: Build the Radar Correlator Application
+### Step 4.3: Build the Radar Correlator Application
 
 ```bash
 cd ../applications/APIApps/radar_correlator
@@ -123,7 +123,7 @@ cp -r input/ ../../build/
 cd ../../build
 ```
 
-### Step 4: Run CEDR and Submit the Application
+### Step 4.4: Run CEDR and Submit the Application
 
 Start the CEDR daemon (in one terminal):
 
@@ -143,7 +143,7 @@ After execution, terminate CEDR (if you set ```"Exit When Idle": false```):
 ./kill_daemon
 ```
 
-### Step 5: Check Profiling Output
+### Step 4.5: Check Profiling Output
 
 Profiling results and logs are in `log_dir/experiment0/`.
 Hopperfish raw profiled features are in `log_dir/experiment0/ad_features.csv`.
@@ -168,7 +168,7 @@ app_id,app_name,app_size,app_runtime,app_task_count,max_in_ready_queue,max_in_to
 
 ---
 
-## 6) Neural Networks: Datasets & Pretrained Models (AE Demo)
+## 5) Neural Networks: Datasets & Pretrained Models (AE Demo)
 
 
 
@@ -187,7 +187,7 @@ Additional useful scripts outside AE_demo:
 
 
 
-## 7) Citing
+## 6) Citing
 
 If you use this repository or parts of it in academic work, please cite:
 
