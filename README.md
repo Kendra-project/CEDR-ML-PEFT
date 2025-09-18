@@ -174,7 +174,7 @@ app_id,app_name,app_size,app_runtime,app_task_count,max_in_ready_queue,max_in_to
 
 For instructions on running the AE (Autoencoder) demo, see the README in:
 
-`neural_networks/AE_demo/README.md`
+`neural_networks/AE_demo/README.md` ([AE DEMO](https://github.com/UA-RCL/CEDR/blob/hopperfish/neural_networks/AE_demo/README.md))
 
 This README provides details on datasets, pretrained models, experiment scripts, and usage examples for anomaly detection. Follow the steps there to set up your environment and run the demo.
 
