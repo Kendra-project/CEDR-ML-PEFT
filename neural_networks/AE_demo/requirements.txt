@@ -1,0 +1,7 @@
+dataframe_image==0.1.10
+matplotlib==3.6.2
+numpy==1.25.2
+pandas==1.5.2
+scikit_learn==1.2.0
+scipy==1.15.2
+tensorflow==2.14.0

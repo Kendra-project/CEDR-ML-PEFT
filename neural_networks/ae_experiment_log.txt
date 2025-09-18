@@ -1,0 +1,17 @@
+2025-09-15 14:09:31,323 - ===== AutoEncoder Inference Run =====
+2025-09-15 14:09:31,323 - Timestamp: 2025-09-15 14:09:31
+2025-09-15 14:09:31,323 - Model path: ./test_deliverables/AE_model_binary
+2025-09-15 14:09:31,323 - Z-score multiplier (STD_DEV_K): 2
+2025-09-15 14:09:31,323 - Dataset path: ./test_deliverables/datasets
+2025-09-15 15:52:35,516 - ===== AutoEncoder Inference Run =====
+2025-09-15 15:52:35,516 - Timestamp: 2025-09-15 15:52:35
+2025-09-15 15:52:35,516 - Model path: ./AE_demo/AE_model_binary
+2025-09-15 15:52:35,516 - Z-score multiplier (STD_DEV_K): 2
+2025-09-15 15:52:35,516 - Dataset path: ./AE_demo/datasets
+2025-09-15 15:52:36,545 - Loaded windows: train=2810, val=1421, test=2819
+2025-09-15 15:52:38,123 - Loaded model with 1842 parameters
+2025-09-15 15:52:40,380 - Threshold MSE = 5.020736 (Z=2)
+2025-09-15 15:52:40,381 - Overall test accuracy: 94.00%
+2025-09-15 15:52:41,548 - Saved accuracy per app plot: ./scenario_results/accuracy_per_app.png
+2025-09-15 15:52:41,938 - Saved violin MSE plot: ./scenario_results/mse_violin_per_app.png
+2025-09-15 15:52:41,939 - ===== Run Complete =====
