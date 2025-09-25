@@ -192,7 +192,18 @@ Additional useful scripts outside AE_demo:
 If you use this repository or parts of it in academic work, please cite:
 
 - **CEDR** project: <https://ua-rcl.github.io/projects/cedr/>
-- **HOPPERFISH**: [Placeholder for ACM TACO citation, add citation here when available]
+- **HOPPERFISH**:
+```bibtex
+@article{ghanim2025hopperfish,
+  title={HOPPERFISH: Holistic Profiling with Portable Extensible and Robust Framework Intended for Systems with Heterogeneity},
+  author={Ghanim, Mustafa and Gener, Serhan and Suluhan, H Umut and Dattilo, Parker and Akoglu, Ali},
+  journal={ACM Transactions on Architecture and Code Optimization},
+  year={2025},
+  publisher={ACM New York, NY}
+}
+```
+
+
 
 ---
 
