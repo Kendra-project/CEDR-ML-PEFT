@@ -12,13 +12,14 @@ ifeq ($(ARCH), aarch64)
 	CXX = aarch64-linux-gnu-g++
 	CC = aarch64-linux-gnu-gcc
 	RUNTIME_LIBDIR = ../../../build-arm/libdash
+	LIBS = -L $(RUNTIME_LIBDIR)
 endif
 
 ifeq ($(ARCH), arm32)
         CXX = /usr/bin/arm-linux-gnueabihf-g++
         CC = /usr/bin/arm-linux-gnueabihf-gcc
         RUNTIME_LIBDIR = ../../../build-arm32/libdash
-		LIBS = -L $(RUNTIME_LIBDIR)
+        LIBS = -L $(RUNTIME_LIBDIR)
 endif
 
 non-api:
