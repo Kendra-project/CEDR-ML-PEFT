@@ -35,7 +35,7 @@ def resource_util(FILENAME):
         start_dict = {}
         stop_dict = {}
         exectime_dict = {}
-        corelist = [' cpu1', ' cpu2', ' cpu3']  # Edit here
+        corelist = [' cpu1', ' cpu2', ' cpu3', ' fft0', ' fft1', ' zip0', ' zip1']  # Edit here
         #print("Proc_schedule_keys : ", proc_schedules.keys())
         for core in corelist:
             if core in proc_schedules.keys():
@@ -178,9 +178,9 @@ if __name__ == '__main__':
 
     ############# Edit parameters here ####################
     CPUS=3
-    FFTS=0
+    FFTS=2
     MMULTS=0
-    ZIPS=0
+    ZIPS=2
     
     SCHEDS=["SIMPLE", "MET", "ETF"]
     
@@ -196,7 +196,7 @@ if __name__ == '__main__':
 
     INJ_COUNT=int(args.injectionRateCount)
     TRIALS=int(args.trial)
-    corelist = [' cpu1', ' cpu2', ' cpu3']  # Edit here
+    corelist = [' cpu1', ' cpu2', ' cpu3', ' fft0', ' fft1', ' zip0', ' zip1']  # Edit here
 
     #######################################################
 
@@ -208,10 +208,10 @@ if __name__ == '__main__':
         header_list = header_list + ['Avg. execution time / app.(ns)', 'Avg. cumulative execution time / app. (ns)', 'Avg. Scheduling overhead / app.(ns)'] + corelist
         writer.writerow(header_list)
         
-        for z in range (ZIPS,ZIPS+1): 
+        for z in range (0,ZIPS+1): 
             for m in range (MMULTS,MMULTS+1):  # Edit the for loop for different types of resources
-                for f in range (FFTS,FFTS+1):
-                    for c in range (0,CPUS):
+                for f in range (0,FFTS+1):
+                    for c in range (CPUS-1,CPUS):
                         for sched in SCHEDS:
                             for i in range(INJ_COUNT):
                                 row_to_write = []

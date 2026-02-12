@@ -27,9 +27,9 @@ if __name__ == "__main__":
 
     ### Configuration specification ###
     CPUS = 3
-    FFTS = 0
+    FFTS = 2
     MMULTS = 0
-    ZIPS = 0
+    ZIPS = 2
     GPUS = 0
     WORKLOAD = 'High'
     TRIALS = 2
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     #exit(0)
     configlist = []
     configlist_tick = []
-    for c in range (CPUS):
+    for c in range (CPUS-1,CPUS):
         for f in range (FFTS+1):
             for m in range(MMULTS+1):
               for z in range (ZIPS+1):
@@ -55,7 +55,7 @@ if __name__ == "__main__":
                     configlist_tick.append('C'+str(c+1)+'\nG'+str(g))
     print(configlist)
     metrics = ['Avg. cumulative execution time / app. (ns)', 'Avg. execution time / app.(ns)', 'Avg. Scheduling overhead / app.(ns)']
-    metricnames = ['Avg. Cumulative Execution\nTime / App.(ms)', 'Avg. Execution Time / App.(ms)', 'Avg. Scheduling Overhead / App.(ms)']
+    metricnames = ['Avg. Cumulative Execution\nTime / App.(ms)', 'Avg. Execution\nTime / App.(ms)', '\nAvg. Scheduling\nOverhead / App.(ms)']
 
     metricSelect = args.metricSelect
 
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     df = pd.read_csv(args.inputFile, sep=',')
     print(df)
 
-    fig = plt.figure() #figsize=(10,6))
+    fig = plt.figure(figsize=(20,12))
     ax = plt.axes(projection='3d')
     configcount = 1
     i = 0
@@ -165,4 +165,8 @@ if __name__ == "__main__":
     #plt.legend(fontsize=20, ncol=5, loc='upper center')
     ax.legend(markerscale=3, fontsize=20, ncol=5, loc='upper center')
     #plt.show()
+
+    # Change viewing angle here
+    ax.view_init(elev=30, azim=60)
+    
     plt.savefig("dse_" + metricSelect + ".png",dpi=1200)
