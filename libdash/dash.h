@@ -22,11 +22,30 @@ extern "C" {
  * Current open questions: 
  * 1. Should we be doing anything to stop the user from shooting themselves in the foot with divide-by-zero with that ZIP_DIV op?
  */
-void DASH_ZIP_flt(dash_cmplx_flt_type* input_1, dash_cmplx_flt_type* input_2, dash_cmplx_flt_type* output, size_t size, zip_op_t op);
-void DASH_ZIP_flt_nb(dash_cmplx_flt_type** input_1, dash_cmplx_flt_type** input_2, dash_cmplx_flt_type** output, size_t* size, zip_op_t* op, cedr_barrier_t* kernel_barrier);
+    // ADDED TUTORIAL 1
+    void DASH_ZIP_flt(dash_cmplx_flt_type* input_1, dash_cmplx_flt_type* input_2, dash_cmplx_flt_type* output, size_t size, zip_op_t op);
+    void DASH_ZIP_flt_nb(dash_cmplx_flt_type** input_1, dash_cmplx_flt_type** input_2, dash_cmplx_flt_type** output, size_t* size, zip_op_t* op, cedr_barrier_t* kernel_barrier);
 
-void DASH_ZIP_int(dash_cmplx_int_type* input_1, dash_cmplx_int_type* input_2, dash_cmplx_int_type* output, size_t size, zip_op_t op);
-void DASH_ZIP_int_nb(dash_cmplx_int_type** input_1, dash_cmplx_int_type** input_2, dash_cmplx_int_type** output, size_t* size, zip_op_t* op, cedr_barrier_t* kernel_barrier);
+    void DASH_ZIP_int(dash_cmplx_int_type* input_1, dash_cmplx_int_type* input_2, dash_cmplx_int_type* output, size_t size, zip_op_t op);
+    void DASH_ZIP_int_nb(dash_cmplx_int_type** input_1, dash_cmplx_int_type** input_2, dash_cmplx_int_type** output, size_t* size, zip_op_t* op, cedr_barrier_t* kernel_barrier);
+
+    void DASH_TRANSPOSE_int(int *input, int *output, size_t rows, size_t cols);
+    void DASH_TRANSPOSE_int_nb(int **input, int **output, size_t *rows, size_t *cols, cedr_barrier_t *barrier);
+
+    void DASH_DENSE_MMUL_flt(float *A, float *B, float *C, size_t M, size_t K, size_t N);
+    void DASH_DENSE_MMUL_flt_nb(float **A, float **B, float **C, size_t *M, size_t *K, size_t *N, cedr_barrier_t *barrier);
+
+    void DASH_SPARSE_VMUL_flt(float *matrix_a, float *vector_x, float *vector_y, size_t size);
+    void DASH_SPARSE_VMUL_flt_nb(float **matrix_a, float **vector_x, float **vector_y, size_t *size, cedr_barrier_t *barrier);
+
+    void DASH_CONVOLVE_2D_flt(float *input, float *kernel, float *output, size_t input_W, size_t input_H, size_t kernel_S);
+    void DASH_CONVOLVE_2D_flt_nb(float **input, float **kernel, float **output, size_t *input_W, size_t *input_H, size_t *kernel_S, cedr_barrier_t *barrier);
+    
+    void DASH_SOFTMAX_flt(float *input, float *output, size_t size);
+    void DASH_SOFTMAX_flt_nb(float **input, float **output, size_t *size, cedr_barrier_t *barrier);
+
+    void DASH_RELU_flt(float *input, float *output, size_t size);
+    void DASH_RELU_flt_nb(float **input, float **output, size_t *size, cedr_barrier_t *barrier);
 
 /*
  * Assumes complex input and output of the form input[2*i+0] = real, input[2*i+1] = imaginary

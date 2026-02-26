@@ -13,7 +13,6 @@ endif()
 set(LIBDASH_GPU_SRCS 
   ${CMAKE_CURRENT_SOURCE_DIR}/gpu_fft.cu
   ${CMAKE_CURRENT_SOURCE_DIR}/gpu_gemm.cu
-  ${CMAKE_CURRENT_SOURCE_DIR}/gpu_zip.cu
   ${CMAKE_CURRENT_SOURCE_DIR}/gpu_conv2d.cu
   ${COMMON_DMA_DIRECTORY}/dma.cpp
 )
@@ -46,7 +45,7 @@ set_target_properties(cufft PROPERTIES
    INTERFACE_INCLUDE_DIRECTORIES "/usr/local/cuda/include/"
 )
 
-add_executable(libdash_gpu_main ${LIBDASH_GPU_SRCS})
-target_include_directories(libdash_gpu_main PRIVATE ${LIBDASH_GPU_INCLUDES})
-set_target_properties(libdash_gpu_main PROPERTIES OUTPUT_NAME "gpu_main")
-target_link_libraries(libdash_gpu_main cufft)
+#add_executable(libdash_gpu_main ${LIBDASH_GPU_SRCS})
+#target_include_directories(libdash_gpu_main PRIVATE ${LIBDASH_GPU_INCLUDES})
+#set_target_properties(libdash_gpu_main PROPERTIES OUTPUT_NAME "gpu_main")
+#target_link_libraries(libdash_gpu_main cufft)

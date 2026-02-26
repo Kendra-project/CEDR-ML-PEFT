@@ -22,20 +22,48 @@
 
 // How are arrays like "estimated execution time" laid out
 // and what index do you use to get the value corresponding to a given resource type?
-enum api_types {DASH_FFT = 0, DASH_GEMM = 1, DASH_FIR = 2, DASH_SpectralOpening = 3, DASH_CIC = 4, DASH_ZIP = 5, DASH_BPSK = 6, DASH_QAM16 = 7, DASH_CONV_2D = 8, DASH_CONV_1D = 9, NUM_API_TYPES = 10};
-static const char *api_type_names[] = {"DASH_FFT", "DASH_GEMM", "DASH_FIR", "DASH_SpectralOpening", "DASH_CIC", "DASH_ZIP", "DASH_BPSK", "DASH_QAM16", "DASH_CONV_2D", "DASH_CONV_1D"};
+  // ADDED TUTORIAL 1 :: YOU NEED TO ADD YOUR NEW API HEAR IN THE LISTS ==> CHECK IF ADDED AFTER REBUILDING BY nm -D libdash-rt/libdash-rt.so | grep -E '*_NAME_*'
+enum api_types {
+  DASH_FFT = 0, DASH_GEMM = 1, DASH_FIR = 2, DASH_SpectralOpening = 3, DASH_CIC = 4, DASH_BPSK = 5, DASH_QAM16 = 6, DASH_CONV_2D = 7, DASH_CONV_1D = 8, 
+  DASH_ZIP = 9, 
+  DASH_TRANSPOSE = 10,
+  DASH_DENSE_MMUL = 11,
+  DASH_SPARSE_VMUL = 12,
+  DASH_CONVOLVE_2D = 13,
+  DASH_SOFTMAX = 14,
+  DASH_RELU = 15,
+  NUM_API_TYPES = 16
+};
+static const char *api_type_names[] = {
+  "DASH_FFT", "DASH_GEMM", "DASH_FIR", "DASH_SpectralOpening", "DASH_CIC", "DASH_BPSK", "DASH_QAM16", "DASH_CONV_2D", "DASH_CONV_1D", 
+  "DASH_ZIP",
+  "DASH_TRANSPOSE",
+  "DASH_DENSE_MMUL",
+  "DASH_SPARSE_VMUL",
+  "DASH_CONVOLVE_2D",
+  "DASH_SOFTMAX",
+  "DASH_RELU"
+};
 static_assert(sizeof(api_type_names) / sizeof(char *) == api_types::NUM_API_TYPES, "API type enum is missing a string representation or enum is missing a value");
 
-static const std::map<std::string, api_types> api_types_map = {{api_type_names[api_types::DASH_FFT], api_types::DASH_FFT},
-                                                               {api_type_names[api_types::DASH_GEMM], api_types::DASH_GEMM},
-                                                               {api_type_names[api_types::DASH_FIR], api_types::DASH_FIR},
-                                                               {api_type_names[api_types::DASH_SpectralOpening], api_types::DASH_SpectralOpening},
-                                                               {api_type_names[api_types::DASH_CIC], api_types::DASH_CIC},
-                                                               {api_type_names[api_types::DASH_ZIP], api_types::DASH_ZIP},
-                                                               {api_type_names[api_types::DASH_BPSK], api_types::DASH_BPSK},
-                                                               {api_type_names[api_types::DASH_QAM16], api_types::DASH_QAM16},
-                                                               {api_type_names[api_types::DASH_CONV_2D], api_types::DASH_CONV_2D},
-                                                               {api_type_names[api_types::DASH_CONV_1D], api_types::DASH_CONV_1D}};
+static const std::map<std::string, api_types> api_types_map = {
+  {api_type_names[api_types::DASH_FFT], api_types::DASH_FFT},
+  {api_type_names[api_types::DASH_GEMM], api_types::DASH_GEMM},
+  {api_type_names[api_types::DASH_FIR], api_types::DASH_FIR},
+  {api_type_names[api_types::DASH_SpectralOpening], api_types::DASH_SpectralOpening},
+  {api_type_names[api_types::DASH_CIC], api_types::DASH_CIC},
+  {api_type_names[api_types::DASH_BPSK], api_types::DASH_BPSK},
+  {api_type_names[api_types::DASH_QAM16], api_types::DASH_QAM16},
+  {api_type_names[api_types::DASH_CONV_2D], api_types::DASH_CONV_2D},
+  {api_type_names[api_types::DASH_CONV_1D], api_types::DASH_CONV_1D},
+  {api_type_names[api_types::DASH_ZIP], api_types::DASH_ZIP},
+  {api_type_names[api_types::DASH_TRANSPOSE], api_types::DASH_TRANSPOSE},
+  {api_type_names[api_types::DASH_DENSE_MMUL], api_types::DASH_DENSE_MMUL},
+  {api_type_names[api_types::DASH_SPARSE_VMUL], api_types::DASH_SPARSE_VMUL},
+  {api_type_names[api_types::DASH_CONVOLVE_2D], api_types::DASH_CONVOLVE_2D},
+  {api_type_names[api_types::DASH_SOFTMAX], api_types::DASH_SOFTMAX},
+  {api_type_names[api_types::DASH_RELU], api_types::DASH_RELU}
+};
                                                                                                                             
 
 enum precision_types { prec_flt = 0, prec_int = 1, NUM_PRECISION_TYPES = 2 };
@@ -46,16 +74,18 @@ static const std::map<std::string, precision_types> precision_types_map =
                                                               {{precision_type_names[precision_types::prec_flt], precision_types::prec_flt},
                                                                {precision_type_names[precision_types::prec_int], precision_types::prec_int}};
 
-enum resource_type { cpu = 0, fft = 1, mmult = 2, zip = 3, gpu = 4, NUM_RESOURCE_TYPES = 5 };
+enum resource_type { cpu = 0, mmult = 1, gpu = 2, fft = 3, zip = 4, NUM_RESOURCE_TYPES = 5 };  // ADDED FOR TUTORIAL 2
 // https://stackoverflow.com/a/9150607
-static const char *resource_type_names[] = {"cpu", "fft", "gemm", "zip", "gpu"};
+static const char *resource_type_names[] = {"cpu", "gemm", "gpu", "fft", "zip"};  // ADDED FOR TUTORIAL 2
 static_assert(sizeof(resource_type_names) / sizeof(char *) == resource_type::NUM_RESOURCE_TYPES, "Resource type enum is missing a string representation or enum is missing a value");
 
-static const std::map<std::string, resource_type> resource_type_map = {{resource_type_names[(uint8_t) resource_type::cpu], resource_type::cpu},
-                                                                       {resource_type_names[(uint8_t) resource_type::fft], resource_type::fft},
-                                                                       {resource_type_names[(uint8_t) resource_type::mmult], resource_type::mmult},
-                                                                       {resource_type_names[(uint8_t) resource_type::zip], resource_type::zip},
-                                                                       {resource_type_names[(uint8_t) resource_type::gpu], resource_type::gpu}};
+static const std::map<std::string, resource_type> resource_type_map = {
+  {resource_type_names[(uint8_t) resource_type::cpu], resource_type::cpu},
+  {resource_type_names[(uint8_t) resource_type::mmult], resource_type::mmult},
+  {resource_type_names[(uint8_t) resource_type::gpu], resource_type::gpu},
+  {resource_type_names[(uint8_t) resource_type::fft], resource_type::fft},
+  {resource_type_names[(uint8_t) resource_type::zip], resource_type::zip}
+};  // ADDED FOR TUTORIAL 2
 
 struct cedr_barrier {
   pthread_cond_t* cond;
@@ -73,6 +103,7 @@ struct task_node_t {
   cedr_barrier_t *kernel_barrier;
   struct struct_app *app_pnt;   // points to parent app
   bool supported_resources[(uint8_t) resource_type::NUM_RESOURCE_TYPES] = {};
+  unsigned long long task_sched_time;
   struct timespec start, end;
   pthread_t parent_app_pthread;
   void *actual_run_func;
@@ -165,6 +196,8 @@ typedef struct struct_pthread_arg pthread_arg;
 struct struct_logging {
   char app_name[50];
   int app_id;
+  unsigned long long app_start_time;
+  unsigned long long task_sched_time;
   int task_id;
   char task_name[50];
   char assign_resource_name[25];
