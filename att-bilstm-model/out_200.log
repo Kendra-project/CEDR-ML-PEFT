@@ -1,0 +1,108 @@
+Using device: cuda
+Loading data from smart_papi_log.jsonl...
+Original data shape: (2000, 6)
+Data shape after pre-processing (deltas): (2000, 6)
+Data scaling complete.
+
+--- Starting Model Training ---
+Epoch [001/020] | Train: 0.601652 | Val: 0.236391
+Epoch [002/020] | Train: 0.174266 | Val: 0.123338
+Epoch [003/020] | Train: 0.058793 | Val: 0.026573
+Epoch [004/020] | Train: 0.020504 | Val: 0.006410
+Epoch [005/020] | Train: 0.012695 | Val: 0.004938
+Epoch [006/020] | Train: 0.011748 | Val: 0.004661
+Epoch [007/020] | Train: 0.010269 | Val: 0.004413
+Epoch [008/020] | Train: 0.009427 | Val: 0.002987
+Epoch [009/020] | Train: 0.008373 | Val: 0.003668
+Epoch [010/020] | Train: 0.009755 | Val: 0.004353
+Epoch [011/020] | Train: 0.008884 | Val: 0.003070
+Epoch [012/020] | Train: 0.008872 | Val: 0.003912
+Epoch [013/020] | Train: 0.008777 | Val: 0.003702
+Epoch [014/020] | Train: 0.008418 | Val: 0.003704
+Epoch [015/020] | Train: 0.007483 | Val: 0.002718
+Epoch [016/020] | Train: 0.007142 | Val: 0.003466
+Epoch [017/020] | Train: 0.007561 | Val: 0.003023
+Epoch [018/020] | Train: 0.007758 | Val: 0.004805
+Epoch [019/020] | Train: 0.007571 | Val: 0.003113
+Epoch [020/020] | Train: 0.007016 | Val: 0.004487
+Training finished in 1.65s. Loaded best model.
+
+[INFO] Initial evaluation on synthetic test set:
+
+--- Starting Final Evaluation ---
+
+--- Real-Time Stream Performance Report ---
+
+--- MAE (Mean Absolute Error) ---
+  - delta_PAPI_TOT_CYC            : 1776802.7500
+  - delta_PAPI_TOT_INS            : 1290342.7500
+  - delta_PAPI_L1_DCM             : 64447.9023
+  - delta_PAPI_L2_DCM             : 19329.6875
+  - delta_PAPI_L3_TCM             : 9920.4277
+  - delta_PAPI_BR_MSP             : 8941.8242
+
+--- R2 (R-squared) ---
+  - delta_PAPI_TOT_INS            : 0.9983
+  - delta_PAPI_L1_DCM             : 0.9983
+  - delta_PAPI_L2_DCM             : 0.9983
+  - delta_PAPI_L3_TCM             : 0.9982
+  - delta_PAPI_TOT_CYC            : 0.9977
+  - delta_PAPI_BR_MSP             : 0.9937
+
+--- Visualizing Results ---
+Results plot saved.
+
+--- Visualizing Error Distribution ---
+Error plot saved.
+[INFO] Real-time plots generated.
+
+==================================================
+ TRAINING COMPLETE. 
+ Ready to connect to CEDR via FIFO: /tmp/cedr_features_pipe
+ Make sure CEDR is running and writing to this pipe.
+==================================================
+
+[INFO] Listening for CEDR data on /tmp/cedr_features_pipe...
+[INFO] buffer filling... (need 20 samples before predicting)
+[INFO] Press Ctrl+C to stop collecting and run evaluation.
+Step 10: Real CYC=26670 vs Pred=12613115
+Step 20: Real CYC=14317 vs Pred=12616899
+Step 30: Real CYC=18146 vs Pred=12618875
+Step 40: Real CYC=13079 vs Pred=12615731
+Step 50: Real CYC=18565 vs Pred=12618235
+Step 60: Real CYC=13374 vs Pred=12618971
+Step 70: Real CYC=13095 vs Pred=12617771
+Step 80: Real CYC=18968 vs Pred=12618147
+Step 90: Real CYC=13430 vs Pred=12619147
+Step 100: Real CYC=16356 vs Pred=12618507
+Step 110: Real CYC=21181 vs Pred=12614331
+Step 120: Real CYC=15244 vs Pred=12619883
+Step 130: Real CYC=13269 vs Pred=12618755
+Step 140: Real CYC=20797 vs Pred=12618795
+
+[INFO] Stopped by user. Running final evaluation on captured stream...
+
+--- Real-Time Stream Performance Report ---
+
+--- MAE (Mean Absolute Error) ---
+  - PAPI_TOT_CYC                  : 12600102.9178
+  - PAPI_TOT_INS                  : 4352983.2808
+  - PAPI_BR_MSP                   : 381499.4664
+  - PAPI_L1_DCM                   : 196513.0039
+  - PAPI_L2_DCM                   : 83433.8464
+  - PAPI_L3_TCM                   : 42266.5369
+
+--- R2 (R-squared) ---
+  - PAPI_TOT_CYC                  : -9304388.6517
+  - PAPI_L2_DCM                   : -10690266.3779
+  - PAPI_L3_TCM                   : -34405039.4911
+  - PAPI_BR_MSP                   : -37460593.3180
+  - PAPI_L1_DCM                   : -60911370.2079
+  - PAPI_TOT_INS                  : -23765611240.2484
+
+--- Visualizing Results ---
+Results plot saved.
+
+--- Visualizing Error Distribution ---
+Error plot saved.
+[INFO] Real-time plots generated.

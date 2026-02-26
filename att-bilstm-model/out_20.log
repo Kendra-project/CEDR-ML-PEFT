@@ -1,0 +1,112 @@
+Using device: cuda
+Loading data from smart_papi_log.jsonl...
+Original data shape: (2000, 6)
+Data shape after pre-processing (deltas): (2000, 6)
+Data scaling complete.
+
+--- Starting Model Training ---
+Epoch [001/020] | Train: 0.620577 | Val: 0.260453
+Epoch [002/020] | Train: 0.216115 | Val: 0.153088
+Epoch [003/020] | Train: 0.112627 | Val: 0.042245
+Epoch [004/020] | Train: 0.026654 | Val: 0.012760
+Epoch [005/020] | Train: 0.016387 | Val: 0.008154
+Epoch [006/020] | Train: 0.012268 | Val: 0.006085
+Epoch [007/020] | Train: 0.011596 | Val: 0.006024
+Epoch [008/020] | Train: 0.010759 | Val: 0.005850
+Epoch [009/020] | Train: 0.010173 | Val: 0.004172
+Epoch [010/020] | Train: 0.009512 | Val: 0.003740
+Epoch [011/020] | Train: 0.009066 | Val: 0.003038
+Epoch [012/020] | Train: 0.009293 | Val: 0.003805
+Epoch [013/020] | Train: 0.008793 | Val: 0.003812
+Epoch [014/020] | Train: 0.008376 | Val: 0.003522
+Epoch [015/020] | Train: 0.008460 | Val: 0.003111
+Epoch [016/020] | Train: 0.008636 | Val: 0.003960
+Epoch [017/020] | Train: 0.008113 | Val: 0.004713
+Epoch [018/020] | Train: 0.008714 | Val: 0.004698
+Epoch [019/020] | Train: 0.007997 | Val: 0.003952
+Epoch [020/020] | Train: 0.009012 | Val: 0.005020
+Training finished in 1.21s. Loaded best model.
+
+[INFO] Initial evaluation on synthetic test set:
+
+--- Starting Final Evaluation ---
+
+--- Real-Time Stream Performance Report ---
+
+--- MAE (Mean Absolute Error) ---
+  - delta_PAPI_TOT_CYC            : 1650546.7500
+  - delta_PAPI_TOT_INS            : 1219881.7500
+  - delta_PAPI_L1_DCM             : 60318.4688
+  - delta_PAPI_L2_DCM             : 17925.6016
+  - delta_PAPI_BR_MSP             : 10443.9424
+  - delta_PAPI_L3_TCM             : 9126.9492
+
+--- R2 (R-squared) ---
+  - delta_PAPI_L2_DCM             : 0.9985
+  - delta_PAPI_L1_DCM             : 0.9985
+  - delta_PAPI_TOT_INS            : 0.9985
+  - delta_PAPI_L3_TCM             : 0.9985
+  - delta_PAPI_TOT_CYC            : 0.9981
+  - delta_PAPI_BR_MSP             : 0.9912
+
+--- Visualizing Results ---
+Results plot saved.
+
+--- Visualizing Error Distribution ---
+Error plot saved.
+[INFO] Real-time plots generated.
+
+==================================================
+ TRAINING COMPLETE. 
+ Ready to connect to CEDR via FIFO: /tmp/cedr_features_pipe
+ Make sure CEDR is running and writing to this pipe.
+==================================================
+
+[INFO] Listening for CEDR data on /tmp/cedr_features_pipe...
+[INFO] buffer filling... (need 20 samples before predicting)
+[INFO] Press Ctrl+C to stop collecting and run evaluation.
+Step 10: Real CYC=12328 vs Pred=16932412
+Step 20: Real CYC=12102 vs Pred=16932324
+Step 30: Real CYC=16773 vs Pred=16932300
+Step 40: Real CYC=12879 vs Pred=16932284
+Step 50: Real CYC=13530 vs Pred=16932260
+Step 60: Real CYC=17418 vs Pred=16932596
+Step 70: Real CYC=12569 vs Pred=16932316
+Step 80: Real CYC=13999 vs Pred=16932612
+Step 90: Real CYC=17935 vs Pred=16933044
+Step 100: Real CYC=12663 vs Pred=16932492
+Step 110: Real CYC=13792 vs Pred=16932908
+Step 120: Real CYC=17416 vs Pred=16932548
+Step 130: Real CYC=12243 vs Pred=16932524
+Step 140: Real CYC=15306 vs Pred=16932876
+Step 150: Real CYC=20127 vs Pred=16925116
+Step 160: Real CYC=14539 vs Pred=16935612
+Step 170: Real CYC=13706 vs Pred=16932436
+Step 180: Real CYC=14657 vs Pred=16932444
+
+[INFO] Stopped by user. Running final evaluation on captured stream...
+
+--- Real-Time Stream Performance Report ---
+
+--- MAE (Mean Absolute Error) ---
+  - PAPI_TOT_CYC                  : 16916973.5833
+  - PAPI_TOT_INS                  : 9108424.1167
+  - PAPI_BR_MSP                   : 462930.6672
+  - PAPI_L1_DCM                   : 462448.4215
+  - PAPI_L2_DCM                   : 124238.6314
+  - PAPI_L3_TCM                   : 54917.4203
+
+--- R2 (R-squared) ---
+  - PAPI_TOT_CYC                  : -16518272.9709
+  - PAPI_L3_TCM                   : -27894444.6761
+  - PAPI_L2_DCM                   : -49748597.6125
+  - PAPI_BR_MSP                   : -159103933.7215
+  - PAPI_L1_DCM                   : -698417512.7686
+  - PAPI_TOT_INS                  : -104834564570.2994
+
+--- Visualizing Results ---
+Results plot saved.
+
+--- Visualizing Error Distribution ---
+Error plot saved.
+[INFO] Real-time plots generated.
